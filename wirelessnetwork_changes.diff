@@ -1,0 +1,1143 @@
+diff -ruN /c/ProgramData/MATLAB/SupportPackages/R2024b/toolbox/comm/supportpackages/wirelessnetwork/wirelessnetwork_backup/+wirelessnetwork/+internal/mobilityModel.m /c/ProgramData/MATLAB/SupportPackages/R2024b/toolbox/comm/supportpackages/wirelessnetwork/wirelessnetwork/+wirelessnetwork/+internal/mobilityModel.m
+--- /c/ProgramData/MATLAB/SupportPackages/R2024b/toolbox/comm/supportpackages/wirelessnetwork/wirelessnetwork_backup/+wirelessnetwork/+internal/mobilityModel.m	2023-04-04 16:47:48.000000000 +0800
++++ /c/ProgramData/MATLAB/SupportPackages/R2024b/toolbox/comm/supportpackages/wirelessnetwork/wirelessnetwork/+wirelessnetwork/+internal/mobilityModel.m	2025-05-11 15:09:12.480623700 +0800
+@@ -13,7 +13,7 @@
+ 
+     %   Copyright 2023 The MathWorks, Inc.
+ 
+-    properties (Access = protected)
++    properties % (Access = protected)
+         %LatestPosition Position of the node when the mobility model was invoked
+         %last time
+         %   Position of the node in 3-D Cartesian coordinates, representing the [x
+diff -ruN /c/ProgramData/MATLAB/SupportPackages/R2024b/toolbox/comm/supportpackages/wirelessnetwork/wirelessnetwork_backup/+wirelessnetwork/+internal/nrNode.m /c/ProgramData/MATLAB/SupportPackages/R2024b/toolbox/comm/supportpackages/wirelessnetwork/wirelessnetwork/+wirelessnetwork/+internal/nrNode.m
+--- /c/ProgramData/MATLAB/SupportPackages/R2024b/toolbox/comm/supportpackages/wirelessnetwork/wirelessnetwork_backup/+wirelessnetwork/+internal/nrNode.m	2024-06-22 01:09:26.000000000 +0800
++++ /c/ProgramData/MATLAB/SupportPackages/R2024b/toolbox/comm/supportpackages/wirelessnetwork/wirelessnetwork/+wirelessnetwork/+internal/nrNode.m	2025-02-14 19:04:50.114920000 +0800
+@@ -7,7 +7,7 @@
+ 
+     % Copyright 2022-2024 The MathWorks, Inc.
+ 
+-    properties(Hidden)
++    properties %(Hidden) (Su)
+         %TrafficManager Traffic manager
+         TrafficManager
+ 
+@@ -21,7 +21,7 @@
+         PhyEntity
+     end
+ 
+-    properties (Access = protected)
++    properties% (Access = protected)
+         %LastRunTime Timestamp (in seconds) when the node last ran
+         % This gets updated every time the node runs
+         LastRunTime = [];
+@@ -33,7 +33,7 @@
+         PHYAbstraction
+     end
+ 
+-    properties (SetAccess = protected, Hidden)
++    properties %(SetAccess = protected, Hidden)
+         %DLCarrierFrequency Downlink carrier frequency in Hz
+         DLCarrierFrequency
+ 
+@@ -179,7 +179,7 @@
+             % First argument must be scalar object
+             validateattributes(obj, {'nrGNB', 'nrUE'}, {'nonempty', 'scalar'}, mfilename, 'obj');
+ 
+-            coder.internal.errorIf(~isempty(obj.LastRunTime), 'nr5g:nrNode:NotSupportedOperation', 'addTrafficSource');
++            %coder.internal.errorIf(~isempty(obj.LastRunTime), 'nr5g:nrNode:NotSupportedOperation', 'addTrafficSource');
+ 
+             % Validate data source object
+             coder.internal.errorIf(~isa(trafficSource, 'wirelessnetwork.internal.networkTraffic') || ~isscalar(trafficSource), 'wirelessnetwork:networkTraffic:InvalidTrafficSource');
+@@ -189,8 +189,9 @@
+ 
+             [upperLayerDataInfo, rlcEntity] = nr5g.internal.nrNodeValidation.validateNVPairAddTrafficSource(obj, varargin);
+             % Add the traffic source to traffic manager
+-            addTrafficSource(obj.TrafficManager, trafficSource, upperLayerDataInfo, @rlcEntity.enqueueSDU);
++            addTrafficSource(obj.TrafficManager, trafficSource, upperLayerDataInfo, @rlcEntity.enqueueSDU); % trafficManager.addTrafficSource
+         end
++        
+     end
+ 
+     methods(Hidden)
+@@ -236,7 +237,7 @@
+ 
+         function pushReceivedData(obj, packet)
+             %pushReceivedData Push the received packet to node
+-            %
++           
+             % OBJ is an object of type nrGNB or nrUE. PACKET is the
+             % received packet. It is a structure of the format <a href="matlab:help('wirelessnetwork.internal.wirelessPacket')">wirelessPacket</a>
+ 
+@@ -281,11 +282,11 @@
+             %   structure of the format <a href="matlab:help('wirelessnetwork.internal.wirelessPacket')">wirelessPacket</a>.
+ 
+             % Technology agnostic filtering
+-            [flag, rxInfo] = isPacketRelevant@wirelessnetwork.internal.wirelessNode(obj, packet);
+-
++            [flag, rxInfo] = isPacketRelevant@wirelessnetwork.internal.wirelessNode(obj, packet);%避免自发自收
++            
+             % Technology specific filtering
+             if flag
+-                % Check if packet is intra-cell and reject if irrelevant
++                % Check if packet is intra-cell and reject if irrelevant %检查数据包是否为小区内通信
+                 if ~intracellPacketRelevance(obj, packet)
+                     flag = 0;
+                     return;
+@@ -293,7 +294,7 @@
+ 
+                 % Check if node is scheduled to be receiving during packet duration
+                 if ~rxOn(obj, packet)
+-                    flag = 0;
++                    flag = 0; %其他gNB收不到srs是因为这里
+                     return;
+                 end
+ 
+@@ -331,8 +332,10 @@
+         function nextInvokeTime = runLayers(obj, currentTime, packets)
+             %runLayers Run the node with the received packet and returns the next invoke time (in seconds)
+ 
+-            % Run the application traffic manager
++            % Run the application traffic manager 
++            % 当没有trafficSource时，nextAppTime=Inf
+             nextAppTime = run(obj.TrafficManager, currentTime);
++           % disp(['nextAppTime:' ,num2str(nextAppTime)]);
+ 
+             % Run the RLC layer
+             nextRLCTime = runRLCLayer(obj, currentTime);
+diff -ruN /c/ProgramData/MATLAB/SupportPackages/R2024b/toolbox/comm/supportpackages/wirelessnetwork/wirelessnetwork_backup/+wirelessnetwork/+internal/randomWaypointMobilityModel.m /c/ProgramData/MATLAB/SupportPackages/R2024b/toolbox/comm/supportpackages/wirelessnetwork/wirelessnetwork/+wirelessnetwork/+internal/randomWaypointMobilityModel.m
+--- /c/ProgramData/MATLAB/SupportPackages/R2024b/toolbox/comm/supportpackages/wirelessnetwork/wirelessnetwork_backup/+wirelessnetwork/+internal/randomWaypointMobilityModel.m	2023-06-26 17:29:00.000000000 +0800
++++ /c/ProgramData/MATLAB/SupportPackages/R2024b/toolbox/comm/supportpackages/wirelessnetwork/wirelessnetwork/+wirelessnetwork/+internal/randomWaypointMobilityModel.m	2025-05-12 21:01:49.487070200 +0800
+@@ -58,7 +58,15 @@
+         WaypointSpeed
+     end
+ 
+-    properties (Access = private)
++    %新增属性
++     properties
++         Waypoints %存储预加载的路径点
++         NextWaypointIndex   % 下一个目标路径点索引
++         
++
++     end
++
++    properties% (Access = private)
+         %PauseState Flag that indicates whether the mobility model is in pause
+         %state. The values true and false indicate pause state and not in pause
+         %state, respectively
+@@ -82,12 +90,17 @@
+         TotalDistance = 0
+ 
+         %LowerLeftCorner X and Y coordinates of the lower left corner of the
+-        %rectangular boundary
++        %rectangular boundary 左下角的X-Y坐标
+         LowerLeftCorner
+ 
+         %RectangularBoundary Flag that indicates whether the boundary shape is
+         %rectangular
+         RectangularBoundary
++        
++        % (Su)
++        % CumulativeDistance Total cumulative distance traveled by the node
++        CumulativeDistance = 0
++
+     end
+ 
+     methods
+@@ -115,13 +128,20 @@
+             obj.LatestPosition = param.Position;
+             obj.LatestVelocity = param.Velocity;
+             obj.LastUpdateTime = param.CurrentTime;
+-            % Set the lower left corner value if the boundary shape is rectangle
++          % Set the lower left corner value if the boundary shape is rectangle
+             if strcmpi(obj.BoundaryShape, "rectangle")
+                 obj.RectangularBoundary = true;
+                 obj.LowerLeftCorner = [obj.Bounds(1)-obj.Bounds(3)/2 obj.Bounds(2)-obj.Bounds(4)/2];
++            elseif strcmpi(obj.BoundaryShape, "fixedpath")
++                obj.RectangularBoundary = false;
++                % 加载预存路径点
++                data = load('fixedpath.mat');  
++                obj.Waypoints = data.waypoints;  % 变量名需为waypoints
++                obj.NextWaypointIndex = 2;  % 初始目标为第二个点
+             else
+                 obj.RectangularBoundary = false;
+             end
++
+             % Set the initial position as the current waypoint
+             obj.Waypoint = obj.LatestPosition;
+             if obj.PauseDuration > 0
+@@ -129,9 +149,13 @@
+                 obj.PauseEndTime = obj.PauseDuration;
+             else
+                 obj.PauseState = false;
+-                [obj.Waypoint, obj.LatestVelocity] = randomWaypoint(obj);
++                [obj.Waypoint, obj.LatestVelocity] = randomWaypoint(obj); %调用 randomWaypoint 方法生成下一个随机航路点和速度。
++                
+                 obj.NextWaypointReachTime = obj.TotalDistance/obj.WaypointSpeed;
+             end
++           
++
++      
+         end
+ 
+         function pos = position(obj, currentTime)
+@@ -149,8 +173,9 @@
+             else
+                 % Update node position if current time is different from the previous time
+                 % the position was calculated
+-                updateMobilityContext(obj, currentTime);
++                updateMobilityContext(obj, currentTime);%updateMobilityContext(obj, currentTime);
+                 pos = obj.LatestPosition;
++                
+             end
+         end
+ 
+@@ -176,44 +201,47 @@
+     end
+ 
+     methods (Access = private)
++      
+         function updateMobilityContext(obj, currentTime)
++            
+             %updateMobilityContext Update position and velocity based on its current time
+-
+             % Find the current position and velocity by iterating from the last update
+-            % time to the current time
+-            while obj.LastUpdateTime < currentTime
+-                % Check if the mobility model reaches pause state during this entire time
+-                if obj.PauseState
+-                    if obj.PauseEndTime < currentTime
+-                        % If the pause time finishes before the current time, select the next random
+-                        % waypoint
+-                        obj.PauseState = false;
+-                        obj.LastUpdateTime = obj.PauseEndTime;
+-                        [obj.Waypoint, obj.LatestVelocity] = randomWaypoint(obj);
+-                        obj.NextWaypointReachTime = obj.LastUpdateTime + (obj.TotalDistance/obj.WaypointSpeed);
+-                    else
+-                        % If the pause time does not finish before the current time, just update
+-                        % the previous time to current time
+-                        obj.LastUpdateTime = currentTime;
+-                    end
+-                else % In mobile state
+-                    if obj.NextWaypointReachTime < currentTime
+-                        % If the mobile state finishes before the current time, move to the pause
+-                        % state
+-                        obj.PauseState = true;
+-                        obj.LastUpdateTime = obj.NextWaypointReachTime;
+-                        obj.PauseEndTime = obj.LastUpdateTime + obj.PauseDuration;
+-                        obj.LatestPosition = obj.Waypoint;
+-                    else
+-                        % If the mobile state does not finish before the current time, update the
+-                        % current position and velocity accordingly
+-                        elapsedTime = currentTime - obj.LastUpdateTime;
+-                        obj.DistanceTraveled = obj.DistanceTraveled + (obj.WaypointSpeed * elapsedTime);
+-                        obj.LatestPosition = obj.LatestPosition + (obj.LatestVelocity*elapsedTime);
+-                        obj.LastUpdateTime = currentTime;
++            % time to the current tim
++                while obj.LastUpdateTime < currentTime
++                    % Check if the mobility model reaches pause state during this entire time
++                    if obj.PauseState
++                        if obj.PauseEndTime < currentTime
++                            % If the pause time finishes before the current time, select the next random
++                            % waypoint
++                            obj.PauseState = false;
++                            obj.LastUpdateTime = obj.PauseEndTime;
++                            [obj.Waypoint, obj.LatestVelocity] = randomWaypoint(obj);
++                            obj.NextWaypointReachTime = obj.LastUpdateTime + (obj.TotalDistance/obj.WaypointSpeed);
++                        else
++                            % If the pause time does not finish before the current time, just update
++                            % the previous time to current time
++                            obj.LastUpdateTime = currentTime;
++                        end
++                    else % In mobile state
++                        if obj.NextWaypointReachTime < currentTime
++                            % If the mobile state finishes before the current time, move to the pause
++                            % state
++                            obj.PauseState = true;
++                            obj.LastUpdateTime = obj.NextWaypointReachTime;
++                            obj.PauseEndTime = obj.LastUpdateTime + obj.PauseDuration;
++                            obj.LatestPosition = obj.Waypoint;
++                        else
++                            % If the mobile state does not finish before the current time, update the
++                            % current position and velocity accordingly
++                            elapsedTime = currentTime - obj.LastUpdateTime;
++                            obj.DistanceTraveled = obj.DistanceTraveled + (obj.WaypointSpeed * elapsedTime);
++                            obj.LatestPosition = obj.LatestPosition + (obj.LatestVelocity*elapsedTime);
++                            obj.CumulativeDistance = obj.CumulativeDistance + (obj.WaypointSpeed * elapsedTime); %(su)
++                            obj.LastUpdateTime = currentTime;
++                        end
+                     end
+                 end
+-            end
++           
+         end
+ 
+         function [waypoint, waypointVelocity] = randomWaypoint(obj)
+@@ -221,18 +249,40 @@
+             %and the selected velocity for reaching the waypoint
+ 
+             pz = obj.LatestPosition(3);
+-            if obj.RectangularBoundary % Rectangle
++            if strcmpi(obj.BoundaryShape, "rectangle") % Rectangle
+                 % Get a random point within the rectangular boundary
+                 px = obj.LowerLeftCorner(1) + obj.Bounds(3)*rand;
+                 py = obj.LowerLeftCorner(2) + obj.Bounds(4)*rand;
+-            else % Circle
++            elseif strcmpi(obj.BoundaryShape, "circle") % Circle
+                 % Get a random point within the circular boundary
+-                r = obj.Bounds(3)*rand;
++                r = obj.Bounds(3)*sqrt(rand); % Directly using rand will result in uneven distribution of waypoints inside the circle (denser near the center).
+                 theta = 2*pi*rand;
+                 px = r*cos(theta) + obj.Bounds(1);
+                 py = r*sin(theta) + obj.Bounds(2);
++            elseif strcmpi(obj.BoundaryShape, "R")
++                px=obj.LatestPosition(1)+rand*obj.Bounds;
++                py=obj.LatestPosition(2)+rand*obj.Bounds;
++            elseif strcmpi(obj.BoundaryShape, "fixedpath")
++                 px = obj.Waypoints(obj.NextWaypointIndex,1);
++                 py = obj.Waypoints(obj.NextWaypointIndex,2);
++        
++                % Update the index (circular traversal)
++                obj.NextWaypointIndex = mod(obj.NextWaypointIndex, size(obj.Waypoints, 1)) + 1;
++
+             end
+             waypoint = [px py pz];
+             obj.TotalDistance = norm(waypoint - obj.LatestPosition);
+             obj.DistanceTraveled = 0;
+ 
+@@ -242,5 +292,8 @@
+             % Find the velocity along each axis (X, Y, and Z) direction
+             waypointVelocity = (obj.WaypointSpeed/obj.TotalDistance) * (waypoint - obj.LatestPosition);
+         end
++        
++
++
+     end
+ end
+\ No newline at end of file
+diff -ruN /c/ProgramData/MATLAB/SupportPackages/R2024b/toolbox/comm/supportpackages/wirelessnetwork/wirelessnetwork_backup/+wirelessnetwork/+internal/trafficManager.m /c/ProgramData/MATLAB/SupportPackages/R2024b/toolbox/comm/supportpackages/wirelessnetwork/wirelessnetwork/+wirelessnetwork/+internal/trafficManager.m
+--- /c/ProgramData/MATLAB/SupportPackages/R2024b/toolbox/comm/supportpackages/wirelessnetwork/wirelessnetwork_backup/+wirelessnetwork/+internal/trafficManager.m	2024-04-03 19:18:40.000000000 +0800
++++ /c/ProgramData/MATLAB/SupportPackages/R2024b/toolbox/comm/supportpackages/wirelessnetwork/wirelessnetwork/+wirelessnetwork/+internal/trafficManager.m	2025-06-08 15:23:04.955215300 +0800
+@@ -49,15 +49,20 @@
+ 
+     %   Copyright 2022-2024 The MathWorks, Inc.
+ 
+ 
+         %PacketContext Technology specific context to be added with each packet
+         PacketContext = struct()
+     end
++    properties
++        isForward = false
++         packetLatency
++
++    end
+ 
+     properties (SetAccess = private)
+         %SendPacketFcn Callback that will be used to send the generated packet to lower
+@@ -72,12 +77,13 @@
+         TrafficSources = cell(1, 0)
+     end
+ 
+-    properties (Access = private)
++    properties %(Access = private) (Su)
+         %TrafficSourcesCount Count of network traffic objects added in the traffic
+         %manager
+         TrafficSourcesCount = 0
+         NumCommunicatingNodes = 0
+ 
+         %TrafficSourceStatistics Statistics captured per traffic source in the traffic
+
+@@ -104,22 +110,24 @@
+         %StatReceivedBytes Number of bytes received in the traffic manager
+         StatReceivedBytes = 0
+ 
+-        %StatTotalLatency Cumulative latency (in seconds) for all the received packets
+-        StatTotalLatency = 0
++        %StatTotalLatency Cumulative latency (in seconds) for all the
++        %received packets (new)
++        StatTotalLatency = 0 
+ 
+         %ReceivedPacketsPerNode Number of packets received per node in the traffic
+-        %manager
++        %manager (new)
+         ReceivedPacketsPerNode = zeros(1, 0)
+ 
+-        %ReceivedBytesPerNode Number of bytes received per node in the traffic manager
++        %ReceivedBytesPerNode Number of bytes received per node in the traffic manager (new)
+         ReceivedBytesPerNode = zeros(1, 0)
+ 
+         %TotalLatencyPerNode Cumulative latency (in seconds) for all the received
+-        %packets per node
++        %packets per node (new)
+         TotalLatencyPerNode = zeros(1, 0)
+ 
+         %NextInvokeTime Next invoke time (in nanoseconds) of each network traffic object
+         NextInvokeTime = zeros(1, 0)
++       
+ 
+         %PacketIDCounter Packet ID counter for each network traffic object. Incremental
+         %packet IDs will be assigned to the packets generated by a traffic source
+@@ -134,7 +142,7 @@
+         CustomSendPacketFcnFlag = false(1, 0)
+     end
+ 
+-    properties (SetAccess = private, Hidden)
++    properties % (SetAccess = private, Hidden)
+         %PacketInfo Array of structures where each element contains the
+         %packet information associated with the added traffic object. The
+         %packet information structure contains at least these fields.
+@@ -148,10 +156,11 @@
+         %   SourceNodeID         - Source node identifier. It is an integer
+         %                          scalar.
+         PacketInfo
++        PacketTemplate
+     end
+ 
+     properties (Access = private, Constant)
+-        %Stats Statistics captured in the traffic manager
++        %Stats Statistics captured in the traffic manager (new)
+         Stats = struct('TransmittedPackets', 0, ...
+             'TransmittedBytes', 0, ...
+             'ReceivedPackets', 0, ...
+@@ -189,8 +198,9 @@
+                 obj.TrafficSourceStatistics.(fields{fieldIdx}) = ...
+                     obj.PacketContext.(fields{fieldIdx});
+             end
+-            % Add tags field to packet format
++            % Add tags field to packet format (new)
+             packetFormat.Tags = [];
++            obj.PacketTemplate=packetFormat;
+             obj.PacketInfo = packetFormat;
+ 
+             % Add the statistics fields for the traffic source statistics
+@@ -200,7 +210,8 @@
+                 obj.TrafficSourceStatistics.(statsContext{idx}) = 0;
+             end
+ 
+-            % Add the statistics fields for the traffic statistics structure
++            % Add the statistics fields for the traffic statistics
++            % structure (new)
+             statsContext = {'NodeID', 'ReceivedPackets', 'ReceivedBytes', 'AveragePacketLatency'};
+             for idx = 1:numel(statsContext)
+                 obj.TrafficStatistics.(statsContext{idx}) = 0;
+@@ -246,15 +257,16 @@
+             %   function handle configured through the constructor.
+ 
+             % Validate whether traffic source object is already added
+-            coder.internal.errorIf(trafficObj.ObjectAdded, 'wirelessnetwork:networkTraffic:UsedTrafficSource');
++           % coder.internal.errorIf(trafficObj.ObjectAdded, 'wirelessnetwork:networkTraffic:UsedTrafficSource');
+ 
+             % Update the 'GeneratePacket' property of network traffic
+             % object such that the packet data will be filled if data
+             % abstraction flag is false and it will not be filled if data
+-            % abstraction flag is true
++            % abstraction flag is true 
+             defaultTrafficSources = ["networkTrafficOnOff" "networkTrafficFTP" "networkTrafficVoIP" "networkTrafficVideoConference"];
+             if any(strcmp(class(trafficObj), defaultTrafficSources))
+-                trafficObj.GeneratePacket = ~obj.DataAbstraction;
++                trafficObj.GeneratePacket = ~obj.DataAbstraction; % 用OnOff函数定义流量时，属性中的GeneratePacket不起作用，如果DataAbstraction为false，那么GeneratePacket永远为true
+             end
+ 
+             % Update the number of traffic sources present in the traffic
+@@ -277,7 +289,9 @@
+ 
+             % Setup the default packet context for the corresponding
+             % network traffic object
+-            obj.PacketInfo(trafficSourcesCount) = obj.PacketInfo(1);
++            %obj.PacketInfo(trafficSourcesCount) = obj.PacketInfo(1);
++            obj.PacketInfo(trafficSourcesCount) = obj.PacketTemplate;
++
+             % Initialize the corresponding statistics properties for the
+             % traffic source
+             obj.TransmittedPacketsPerSource(trafficSourcesCount) = 0;
+@@ -297,16 +311,43 @@
+ 
+             % Set the next invocation time of network traffic object to 0
+             % nanoseconds
+-            obj.NextInvokeTime(trafficSourcesCount) = 0;
++            %obj.NextInvokeTime(trafficSourcesCount) = 0;
++            NetworkSimulator = wirelessNetworkSimulator.getInstance();% Obtain the global network simulator.
++            obj.NextInvokeTime(trafficSourcesCount) = round(NetworkSimulator.CurrentTime * 1e9); 
+ 
+             % Set the packet ID counter for the corresponding network
+             % traffic object
+             obj.PacketIDCounter(trafficSourcesCount) = 0;
+ 
+-            % Indicate that the traffic object is added to a node
+-            trafficObj.ObjectAdded = true;
++            % Indicate that the traffic object is added to a node (new)
++            %trafficObj.ObjectAdded = true;
++        end
++
++        function RemoveTrafficSource(obj, ueInfo)
++            % Find the corresponding traffic source index based on the RNTI.
++            matchIdx = find([obj.PacketInfo.RNTI] == ueInfo.RNTI, 1);
++        
++            % Only perform deletion if found.
++            if ~isempty(matchIdx) && obj.TrafficSourcesCount > 0   
++                obj.TrafficSourcesCount = obj.TrafficSourcesCount - 1; 
++                obj.TrafficSources(matchIdx) = [];
++                obj.CustomSendPacketFcn(matchIdx) = [];
++                obj.PacketInfo(matchIdx) = [];
++        
++              
++            end
+         end
+ 
++
++      
++
++
+         function nextInvokeTime = run(obj, currentTime)
+             %run Run all the network traffic objects that need to generate
+             %traffic at the current time, and returns the next invoke time
+@@ -327,13 +368,15 @@
+ 
+             nextInvokeTime = Inf;
+             % Ready to generate the next packet
++            
+             for idx = 1:obj.TrafficSourcesCount
+                 while obj.NextInvokeTime(idx) == currentTime
+                     packetInfo = obj.PacketInfo(idx);
+                     % Update the packet ID counter
+                     obj.PacketIDCounter(idx) = obj.PacketIDCounter(idx) + 1;
+ 
+-                    % Generate packet parameters from the application traffic source
++                    % Generate packet parameters from the application
++                    % traffic source (new)
+                     if obj.DataAbstraction
+                         [dt, packetLength] = obj.TrafficSources{idx}.generate();
+                         packet = [];
+@@ -390,12 +433,19 @@
+             %                       empty if the received packet is
+             %                       abstracted.
+             %       PacketLength  - Length of packet in bytes.
++            
++            
++             if ~obj.isForward % (Su)
++                 return 
++             end
+ 
+             if isfield(packetInfo, "Tags")
+                 [~, tag] = wirelessnetwork.internal.packetTags.remove(packetInfo.Tags, "AppTimestamp");
+                 % Find the latency using packet tags
+-                packetLatency = (varargin{1}*1e-9) - tag.Value;
+-                obj.StatTotalLatency = obj.StatTotalLatency + packetLatency;
++                obj.packetLatency = (varargin{1}*1e-9) - tag.Value; %整个包的运行时间
++                
++
++                obj.StatTotalLatency = obj.StatTotalLatency + obj.packetLatency;
+ 
+                 % Update per-node Rx side statistics
+                 trafficStats = obj.TrafficStatistics;
+@@ -403,7 +453,7 @@
+                 if any(rxContextIdx)
+                     obj.ReceivedPacketsPerNode(rxContextIdx) = obj.ReceivedPacketsPerNode(rxContextIdx) + 1;
+                     obj.ReceivedBytesPerNode(rxContextIdx) = obj.ReceivedBytesPerNode(rxContextIdx) + packetInfo.PacketLength;
+-                    obj.TotalLatencyPerNode(rxContextIdx) = obj.TotalLatencyPerNode(rxContextIdx) + packetLatency;
++                    obj.TotalLatencyPerNode(rxContextIdx) = obj.TotalLatencyPerNode(rxContextIdx) + obj.packetLatency;
+                 else
+                     obj.NumCommunicatingNodes = obj.NumCommunicatingNodes + 1;
+                     numTrafficNodes = obj.NumCommunicatingNodes;
+@@ -411,16 +461,22 @@
+                     obj.TrafficStatistics(numTrafficNodes).NodeID = packetInfo.NodeID;
+                     obj.ReceivedPacketsPerNode(numTrafficNodes) = 1;
+                     obj.ReceivedBytesPerNode(numTrafficNodes) = packetInfo.PacketLength;
+-                    obj.TotalLatencyPerNode(numTrafficNodes) = packetLatency;
++                    obj.TotalLatencyPerNode(numTrafficNodes) = obj.packetLatency;
+                 end
+             end
+ 
+             % Update the statistics
+             obj.StatReceivedPackets = obj.StatReceivedPackets + 1;
+             obj.StatReceivedBytes = obj.StatReceivedBytes + packetInfo.PacketLength;
++            obj.isForward=false; % (Su)
++           
+ 
+             % Notify the node about the packet reception
+             obj.NotificationFcn('AppDataReceived', packetInfo);
++            % fprintf("[Time: %.6f] gNB Traffic received packet from UE%d (size: %d bytes)\n", ...
++            % packetInfo.CurrentTime, packetInfo.NodeID, packetInfo.PacketLength);
++
++            
+         end
+ 
+         function stats = statistics(obj, varargin)
+diff -ruN /c/ProgramData/MATLAB/SupportPackages/R2024b/toolbox/comm/supportpackages/wirelessnetwork/wirelessnetwork_backup/+wirelessnetwork/+internal/wirelessNode.m /c/ProgramData/MATLAB/SupportPackages/R2024b/toolbox/comm/supportpackages/wirelessnetwork/wirelessnetwork/+wirelessnetwork/+internal/wirelessNode.m
+--- /c/ProgramData/MATLAB/SupportPackages/R2024b/toolbox/comm/supportpackages/wirelessnetwork/wirelessnetwork_backup/+wirelessnetwork/+internal/wirelessNode.m	2023-05-02 20:31:00.000000000 +0800
++++ /c/ProgramData/MATLAB/SupportPackages/R2024b/toolbox/comm/supportpackages/wirelessnetwork/wirelessnetwork/+wirelessnetwork/+internal/wirelessNode.m	2025-05-22 15:46:32.361432100 +0800
+@@ -46,7 +46,7 @@
+         Simulator
+     end
+ 
+-    properties (SetAccess = protected, Hidden)
++    properties %(SetAccess = protected, Hidden)
+         %TransmitterBuffer Transmitted packets to be distributed to other nodes
+         % Vector of packets of type wirelessnetwork.internal.wirelessPacket
+         % transmitted by this node and to be sent over the channel
+@@ -187,8 +187,32 @@
+             else
+                 mobilityParam.CurrentTime = obj(1).Simulator.CurrentTime;
+             end
++            % (Su)
++            % if numel(obj) > 0
++            %     %  Get the first node as the reference.
++            %     baseNode = obj(1);
++            %     
++            %     mobilityParam.Position = baseNode.Position;
++            %     mobilityParam.Velocity = baseNode.Velocity;
++            %    
++            %     if isempty(mobilityParam.Bounds)
++            %         if strcmpi(mobilityParam.BoundaryShape, "rectangle")
++            %             mobilityParam.Bounds = [baseNode.Position(1:2) 10 10];
++            %         else
++            %             mobilityParam.Bounds = [baseNode.Position(1:2) 10];
++            %         end
++            %     end
++            %     % Create a shared random waypoint mobility model object.
++            %     sharedMobilityObj = wirelessnetwork.internal.randomWaypointMobilityModel(mobilityParam);
++            % 
++            %     % Assign the shared mobility model to all nodes.
++            %     for idx = 1:numel(obj)
++            %         node = obj(idx);
++            %         node.Mobility = sharedMobilityObj;
++            %     end
++            % end
+ 
+-            % Add mobility model to each node in the given array of nodes
++            % % Add mobility model to each node in the given array of nodes
+             for idx=1:numel(obj)
+                 node = obj(idx);
+                 % Add position information to the mobility parameter structure
+
+@@ -369,7 +393,7 @@
+                     case "PauseDuration"
+                         validateattributes(value, {'numeric'}, {'nonempty', 'finite', 'scalar', '>=', 0}, 'PauseDuration', 'PauseDuration')
+                     case "BoundaryShape"
+-                        value = validatestring(value, ["rectangle" "circle"], 'BoundaryShape', 'BoundaryShape');
++                        value = validatestring(value, ["rectangle" "circle" "R" "fixedpath"], 'BoundaryShape', 'BoundaryShape'); %(Su)
+                     case "Bounds"
+                         validateattributes(value, {'numeric'}, {'nonempty','finite', 'vector'}, 'Bounds', 'Bounds')
+                     otherwise
+@@ -399,11 +423,17 @@
+                     actualY = node.Position(2);
+                     isInsideY = (yRange(1)<=actualY) && (yRange(2)>=actualY);
+                     coder.internal.errorIf(~(isInsideX && isInsideY), "wirelessnetwork:wirelessNode:PositionOutsideMobilityBounds")
+-                else
++                elseif strcmpi(mobilityParam.BoundaryShape, "circle")
+                     validateattributes(mobilityParam.Bounds,{'numeric'},{'numel', 3})
+                     validateattributes(mobilityParam.Bounds(3),{'numeric'},{'>', 0})
+                     distance = sum((mobilityParam.Bounds(1:2) - node.Position(1:2)).^2);
+                     coder.internal.errorIf(distance>(mobilityParam.Bounds(3)^2), "wirelessnetwork:wirelessNode:PositionOutsideMobilityBounds")
++                elseif strcmpi(mobilityParam.BoundaryShape, "fixedPath")
++                   
++                else %"R"
++                    validateattributes(mobilityParam.Bounds,{'numeric'},{'numel', 1})
++
+                 end
+             end
+         end
+
+
+diff -ruN /c/ProgramData/MATLAB/SupportPackages/R2024b/toolbox/comm/supportpackages/wirelessnetwork/wirelessnetwork_backup/nrGNB.m /c/ProgramData/MATLAB/SupportPackages/R2024b/toolbox/comm/supportpackages/wirelessnetwork/wirelessnetwork/nrGNB.m
+--- /c/ProgramData/MATLAB/SupportPackages/R2024b/toolbox/comm/supportpackages/wirelessnetwork/wirelessnetwork_backup/nrGNB.m	2024-07-30 03:09:34.000000000 +0800
++++ /c/ProgramData/MATLAB/SupportPackages/R2024b/toolbox/comm/supportpackages/wirelessnetwork/wirelessnetwork/nrGNB.m	2025-05-30 10:49:38.636537700 +0800
+@@ -247,6 +247,8 @@
+         %ConnectedUEs RNTI of the UEs connected to the gNB, returned as vector of integers
+         ConnectedUEs
+ 
++        NextRNTI=1 
++
+         %UENodeIDs ID of the UEs connected to the gNB, returned as vector of integers
+         UENodeIDs
+ 
+@@ -254,7 +256,7 @@
+         UENodeNames = strings(0,1);
+     end
+ 
+-    properties(SetAccess = protected, Hidden)
++    properties %(SetAccess = protected, Hidden)
+         %NCellID Physical layer cell identity of the carrier gNB is serving
+         NCellID
+ 
+@@ -262,7 +264,7 @@
+         ConnectedUENodes = {}
+     end
+     
+-    properties(Hidden)
++    properties %(Hidden)(su)
+         %GuardBand Gap between DL and UL bands in Hz (Only valid for FDD)
+         GuardBand = 140e6;
+ 
+@@ -597,8 +601,11 @@
+ 
+                 % Update connection information
+                 rnti = length(obj.ConnectedUEs)+1;
++                obj.NextRNTI=obj.NextRNTI+1;
++                
+                 connectionConfig = connectionConfigList(i); % UE specific configuration
+                 freeSRSIndex = find(obj.SRSOccupancyStatus==0, 1); % First free SRS resource index
++                UE(i).SRSIndex=freeSRSIndex;
+                 if isempty(freeSRSIndex)
+                     % No free SRS configuration. Increase the per-UE periodicity
+                     % of SRS to accommodate more UEs
+@@ -669,6 +676,230 @@
+                 UE(i).addConnection(connectionConfig);
+             end
+         end
++        function addSRSconfigure(obj,ueInfo)
++              
++                freeSRSIndex = find(obj.SRSOccupancyStatus==0, 1); % First free SRS resource index
++                % Fill SRS configuration
++                srsConfig = obj.SRSConfiguration(freeSRSIndex);
++                srsConfig.NumSRSPorts = ueInfo.NumTransmitAntennas;
++                srsConfig.NSRSID = obj.NCellID;
++                macInfo.SRSConfiguration=srsConfig;
++                phyInfo.DuplexMode=obj.DuplexMode;
++                phyInfo.RNTI=ueInfo.UEID;
++                
++                
++                obj.MACEntity.addSRSconfigure(macInfo);
++                obj.PhyEntity.addSRSconfigure(phyInfo);
++
++        end
++        function disconnect(obj,UE,varargin)
++            % First argument must be scalar object
++            validateattributes(obj, {'nrGNB'}, {'scalar'}, mfilename, 'obj');
++            validateattributes(UE, {'nrUE'}, {'vector'}, mfilename, 'UE');
++            numUEs = length(UE);
++            macConnectionParam = ["RNTI", "UEID", "UEName"];
++            phyConnectionParam = "RNTI";
++            schedulerConnectionParam = ["RNTI","UEID","UEName"];
++           
++            for i=1:numUEs
++                ueInfoStruct=struct('RNTI', UE(i).RNTI, ...
++                    'UEID', UE(i).ID, ...
++                    'UEName', UE(i).Name, ...
++                    'CSIRSConfiguration', obj.CSIRSConfiguration);
++                obj.SRSOccupancyStatus(UE(i).SRSIndex)=0;
++                UE(i).SRSIndex=0;
++                % Remove list of connected UEs
++                obj.ConnectedUEs=obj.ConnectedUEs(obj.ConnectedUEs~=UE(i).RNTI);
++                obj.UENodeIDs=obj.UENodeIDs(obj.UENodeIDs~=UE(i).ID);
++                obj.UENodeNames=obj.UENodeNames(obj.UENodeNames~=UE(i).Name);
++                indexToRemove = cellfun(@(ue) isequal(ue, UE(i)), obj.ConnectedUENodes);
++                obj.ConnectedUENodes(indexToRemove) = [];
++
++                % Remove connection context to gNB RLC entity
++                indexToRemove=cellfun(@(RLC) RLC.RNTI==UE(i).RNTI, obj.RLCEntity);
++                obj.RLCEntity(indexToRemove) = [];
++
++                % Remove connection context to gNB scheduler
++                schedulerConnectionInfo = struct();
++                for j=1:numel(schedulerConnectionParam)
++                    schedulerConnectionInfo.(schedulerConnectionParam(j)) = ueInfoStruct.(schedulerConnectionParam(j));
++                end
++                obj.MACEntity.Scheduler.RemoveConnectionContext(schedulerConnectionInfo); %nrScheduler.m
++
++
++                % Remove connection context to gNB PHY
++                phyConnectionInfo = struct();
++                for j=1:numel(phyConnectionParam)
++                    phyConnectionInfo.(phyConnectionParam(j)) = ueInfoStruct.(phyConnectionParam(j));
++                end
++                obj.PhyEntity.RemoveConnection(phyConnectionInfo); %nrGNBPHY.m
++
++                % Remove connection context to gNB MAC
++                macConnectionInfo = struct();
++                for j=1:numel(macConnectionParam)
++                    macConnectionInfo.(macConnectionParam(j)) = ueInfoStruct.(macConnectionParam(j));
++                end
++                obj.MACEntity.RemoveConnection(macConnectionInfo); %nrGNBMAC.run
++               
++                 % Remove Traffic source
++                ueInfo.RNTI=UE.RNTI;
++                obj.TrafficManager.RemoveTrafficSource(ueInfo);
++
++
++                 % Remove connection on UE
++                UE(i).RemoveConnection();
++
++
++            end
++        end
++
++        function reconnectUE(obj,UE,varargin)
++             % First argument must be scalar object
++            validateattributes(obj, {'nrGNB'}, {'scalar'}, mfilename, 'obj');
++            validateattributes(UE, {'nrUE'}, {'vector'}, mfilename, 'UE');
++           
++
++            % Name-value pair check 创建默认的连接配置结构体
++            coder.internal.errorIf(mod(numel(varargin), 2) == 1, 'MATLAB:system:invalidPVPairs');
++            numUEs = length(UE);
++            connectionConfigStruct = struct('RNTI', 0, 'GNBID', obj.ID, 'GNBName', ...
++                obj.Name, 'UEID', 0, 'UEName', [], 'NCellID', obj.NCellID, ...
++                'SubcarrierSpacing', obj.SubcarrierSpacing, 'SchedulingType', ...
++                0, 'NumHARQ', obj.NumHARQ, 'DuplexMode', obj.DuplexMode, ...
++                'CSIRSConfiguration', obj.CSIRSConfiguration, 'CSIReportConfiguration', [],  'SRSConfiguration', ...
++                [], 'SRSSubbandSize', [], 'NumResourceBlocks', obj.NumResourceBlocks, ...
++                'ChannelBandwidth', obj.ChannelBandwidth, 'DLCarrierFrequency', ...
++                obj.DLCarrierFrequency, 'ULCarrierFrequency', obj.ULCarrierFrequency, ...
++                'BSRPeriodicity', 5, 'CSIReportPeriodicity', [], 'CSIReportPeriodicityRSRP', ...
++                1, 'RBGSizeConfiguration', 1, 'DLULConfigTDD', obj.DLULConfigTDD, ...
++                'NumTransmitAntennas', 1, 'NumReceiveAntennas', 1,  'InitialMCSIndexDL', 11,...
++                'PoPUSCH', obj.ULPowerControlParameters.PoPUSCH, 'AlphaPUSCH', obj.ULPowerControlParameters.AlphaPUSCH,...
++                'GNBTransmitPower', [], 'CSIMeasurementSignalDLType', obj.CSIMeasurementSignalDLType, ...
++                'InitialMCSIndexUL', 11, 'InitialCQIDL', 0, 'FullBufferTraffic', "off", ...
++                'RLCBearerConfig', [], 'RVSequence', obj.RVSequence, 'CustomContext', struct());
++
++            % Initialize connection configuration array for UEs 为所有UE初始化连接配置
++            connectionConfigList = repmat(connectionConfigStruct, numUEs, 1); %repamat用于重复
++
++            % Form array of connection configuration (1 for each UE)
++            for idx=1:2:nargin-2
++                name = varargin{idx};
++                value = nr5g.internal.nrNodeValidation.validateConnectUEInputs(name, varargin{idx+1});
++                % Set same value per connection
++                [connectionConfigList(:).(char(name))] = deal(value);
++            end
++
++            % Information to configure connection information at gNB MAC
++            macConnectionParam = ["RNTI", "UEID", "UEName", "CSIRSConfiguration", "SRSConfiguration","CSIRSRxInfo","SRSTxInfo"];
++            % Information to configure connection information at gNB PHY
++            phyConnectionParam = ["RNTI", "UEID", "UEName", "SRSSubbandSize", "NumHARQ", "DuplexMode", "CSIMeasurementSignalDLType"];
++            % Information to configure connection information at gNB scheduler
++            schedulerConnectionParam = ["RNTI", "UEID", "UEName", "NumTransmitAntennas", "NumReceiveAntennas", ...
++                "SRSConfiguration", "CSIRSConfiguration", "CSIReportConfiguration", "SRSSubbandSize", ...
++                "InitialCQIDL", "InitialMCSIndexUL", "CustomContext", "RLCBearerConfig"];
++            % Information to configure connection information at gNB RLC
++            rlcConnectionParam = ["RNTI", "FullBufferTraffic", "RLCBearerConfig"];
++
++            % Set connection for each UE
++            for i=1:numUEs
++                if numUEs == 1
++                    coder.internal.errorIf(strcmpi(UE(i).ConnectionState, "Connected") && ismember(UE(i).RNTI, obj.ConnectedUEs), 'nr5g:nrGNB:AlreadyConnectedScalar');
++                    coder.internal.errorIf(strcmpi(UE(i).ConnectionState, "Connected") && ~isempty(UE(i).GNBNodeID), 'nr5g:nrGNB:InvalidConnectionScalar', UE(i).GNBNodeID);
++                else
++                    coder.internal.errorIf(strcmpi(UE(i).ConnectionState, "Connected") && ismember(UE(i).RNTI, obj.ConnectedUEs), 'nr5g:nrGNB:AlreadyConnected', i);
++                    coder.internal.errorIf(strcmpi(UE(i).ConnectionState, "Connected") && ~isempty(UE(i).GNBNodeID), 'nr5g:nrGNB:InvalidConnection', i, UE(i).GNBNodeID);
++                end
++                coder.internal.errorIf(UE(i).NumTransmitAntennas~=UE(i).NumReceiveAntennas && obj.CSIMeasurementSignalDLType, 'nr5g:nrGNB:InvalidNumUETxRxAntennas');
++                coder.internal.errorIf(obj.SubcarrierSpacing > 30e3 && strcmp(UE(i).PHYAbstractionMethod, 'none'),...
++                'nr5g:nrGNB:InvalidSCSWithPhyAbstractionMethod', "UE")
++
++                % Update connection information
++                rnti=obj.NextRNTI;
++                obj.NextRNTI=obj.NextRNTI+1;
++                connectionConfig = connectionConfigList(i); % UE specific configuration
++                freeSRSIndex = find(obj.SRSOccupancyStatus==0, 1); % First free SRS resource index
++                UE(i).SRSIndex=freeSRSIndex;
++                if isempty(freeSRSIndex)
++                    % No free SRS configuration. Increase the per-UE periodicity
++                    % of SRS to accommodate more UEs
++                    updateSRSPeriodicity(obj);
++                    freeSRSIndex = find(obj.SRSOccupancyStatus==0, 1); % First free SRS resource index
++                end
++
++                % Fill connection configuration
++                srsConfig = obj.SRSConfiguration(freeSRSIndex);
++                srsConfig.NumSRSPorts = UE(i).NumTransmitAntennas;
++                srsConfig.NSRSID = obj.NCellID;
++                connectionConfig.SRSConfiguration = srsConfig;
++                connectionConfig.RNTI = rnti;
++                connectionConfig.NCellID = obj.NCellID;
++                connectionConfig.UEID = UE(i).ID;
++                connectionConfig.UEName = UE(i).Name;
++                connectionConfig.NumTransmitAntennas = UE(i).NumTransmitAntennas;
++                connectionConfig.NumReceiveAntennas = UE(i).NumReceiveAntennas;
++                connectionConfig.CSIRSRxInfo=UE(i).MACEntity.CSIRSRxInfo;
++                connectionConfig.SRSTxInfo=UE(i).MACEntity.SRSTxInfo;
++
++
++                connectionConfig.CSIRSConfiguration.NID = obj.NCellID;
++                connectionConfig.CSIReportType = obj.CSIReportType;
++
++                % Validate connection information
++                connectionConfig = nr5g.internal.nrNodeValidation.validateConnectionConfig(connectionConfig);
++                connectionConfig.CSIReportConfiguration.CQITable = obj.CQITable;
++                connectionConfig.InitialCQIDL = nrGNB.getCQIIndex(connectionConfig.InitialMCSIndexDL);
++
++                % Mark the SRS resource as occupied
++                obj.SRSConfiguration(freeSRSIndex) = srsConfig;
++                obj.SRSOccupancyStatus(freeSRSIndex) = 1;
++
++                % Update list of connected UEs
++                obj.ConnectedUEs(end+1) = rnti;
++                obj.UENodeIDs(end+1) = UE(i).ID;
++                obj.UENodeNames(end+1) = UE(i).Name;
++                obj.ConnectedUENodes{end+1} = UE(i);
++
++                % Add connection context to gNB MAC
++                macConnectionInfo = struct();
++                for j=1:numel(macConnectionParam)
++                    macConnectionInfo.(macConnectionParam(j)) = connectionConfig.(macConnectionParam(j));
++                end
++                obj.MACEntity.reAddConnection(macConnectionInfo);
++
++                % Add connection context to gNB PHY
++                phyConnectionInfo = struct();
++                for j=1:numel(phyConnectionParam)
++                    phyConnectionInfo.(phyConnectionParam(j)) = connectionConfig.(phyConnectionParam(j));
++                end
++                obj.PhyEntity.addConnection(phyConnectionInfo);
++                connectionConfig.GNBTransmitPower = obj.PhyEntity.scaleTransmitPower;
++
++                % Add connection context to gNB scheduler
++                schedulerConnectionInfo = struct();
++                for j=1:numel(schedulerConnectionParam)
++                    schedulerConnectionInfo.(schedulerConnectionParam(j)) = connectionConfig.(schedulerConnectionParam(j));
++                end
++                obj.MACEntity.Scheduler.addConnectionContext(schedulerConnectionInfo);
++
++                % Add connection context to gNB RLC entity
++                rlcConnectionInfo = struct();
++                for j=1:numel(rlcConnectionParam)
++                    rlcConnectionInfo.(rlcConnectionParam(j)) = connectionConfig.(rlcConnectionParam(j));
++                end
++                obj.FullBufferTraffic(rnti) = rlcConnectionInfo.FullBufferTraffic;
++                addRLCBearer(obj, rlcConnectionInfo)
++
++                % Set up connection on UE
++                UE(i).reAddConnection(connectionConfig);
++            end
++
++
++
++        end
++
++
++
++
+ 
+         function stats = statistics(obj, varargin)
+             %statistics Return the statistics of gNB
+diff -ruN /c/ProgramData/MATLAB/SupportPackages/R2024b/toolbox/comm/supportpackages/wirelessnetwork/wirelessnetwork_backup/nrUE.m /c/ProgramData/MATLAB/SupportPackages/R2024b/toolbox/comm/supportpackages/wirelessnetwork/wirelessnetwork/nrUE.m
+--- /c/ProgramData/MATLAB/SupportPackages/R2024b/toolbox/comm/supportpackages/wirelessnetwork/wirelessnetwork_backup/nrUE.m	2024-06-22 01:09:26.000000000 +0800
++++ /c/ProgramData/MATLAB/SupportPackages/R2024b/toolbox/comm/supportpackages/wirelessnetwork/wirelessnetwork/nrUE.m	2025-05-25 17:37:33.464210600 +0800
+@@ -108,7 +108,7 @@
+         PHYAbstractionMethod = "linkToSystemMapping";
+     end
+ 
+-    properties (SetAccess = private)
++    properties % (SetAccess = private)(Su)
+         %GNBNodeID Node ID of the gNB to which UE is connected
+         GNBNodeID
+ 
+@@ -121,8 +121,11 @@
+         %RNTI Radio network temporary identifier (integer in the range 1 to 65519, inclusive) of the UE
+         RNTI;
+     end
++    properties
++        SRSIndex
++    end
+ 
+-    properties(SetAccess = private, Hidden)
++    properties%(SetAccess = private, Hidden)
+         %MUMIMOEnabled MU-MIMO enabled (Value 1) or not (Value 0)
+         MUMIMOEnabled
+ 
+@@ -221,6 +225,20 @@
+                 ue.setLayerInterfaces();
+             end
+         end
++        
++        function configureULforSRS(obj,gNB)
++            % First argument must be scalar object
++            validateattributes(obj,{'nrUE'},{'scalar'},mfilename,'obj');
++            validateattributes(gNB, {'nrGNB'}, {'vector'}, mfilename, 'gNB');
++            numCells=length(gNB);
++            connectionConfig.NumTransmitAntennas=obj.NumTransmitAntennas;
++            connectionConfig.UEID=obj.ID;
++
++            for i=1:numCells
++                gNB(i).addSRSconfigure(connectionConfig);
++
++            end
++        end
+ 
+         function stats = statistics(obj)
+             %statistics Return the statistics of the UE
+@@ -324,7 +342,83 @@
+             % Convert the SCS value from Hz to kHz
+             subcarrierSpacingInKHZ = connectionConfig.SubcarrierSpacing/1e3;
+             macConnectionInfo.SubcarrierSpacing = subcarrierSpacingInKHZ;
+-            obj.MACEntity.addConnection(macConnectionInfo);
++            obj.MACEntity.addConnection(macConnectionInfo); %nrUEMAC.m
++
++            % Add connection context to PHY
++            phyConnectionParam = {'RNTI', 'NCellID', 'DuplexMode', 'NumResourceBlocks', ...
++                'NumHARQ', 'ChannelBandwidth', 'PoPUSCH', 'AlphaPUSCH', 'GNBTransmitPower',...
++                'DLCarrierFrequency', 'ULCarrierFrequency', ...
++                'CSIReportConfiguration', 'SubcarrierSpacing'};
++            phyConnectionInfo = struct();
++            for j=1:numel(phyConnectionParam)
++                phyConnectionInfo.(char(phyConnectionParam{j})) = connectionConfig.(char(phyConnectionParam{j}));
++            end
++            phyConnectionInfo.SubcarrierSpacing = subcarrierSpacingInKHZ;
++            obj.PhyEntity.addConnection(phyConnectionInfo);  %nrUEPHY.m
++            if strcmp(obj.PHYAbstractionMethod, "none")
++                obj.PhyEntity.RVSequence = connectionConfig.RVSequence;
++            end
++
++            % Add connection context to RLC entity
++            rlcConnectionParam = {'RNTI', 'FullBufferTraffic', 'RLCBearerConfig'};
++            rlcConnectionInfo = struct();
++            for j=1:numel(rlcConnectionParam)
++                rlcConnectionInfo.(char(rlcConnectionParam{j})) = connectionConfig.(char(rlcConnectionParam{j}));
++            end
++            obj.FullBufferTraffic = rlcConnectionInfo.FullBufferTraffic;
++            addRLCBearer(obj, rlcConnectionInfo); %RLC 用于连接节点的MAC和Traffic层
++        end
++
++
++        function RemoveConnection(obj)
++            % Remove Traffic source
++            ueInfo.RNTI=obj.RNTI;
++            obj.TrafficManager.RemoveTrafficSource(ueInfo);
++            % Remove connection context to RLC entity 
++            obj.RLCEntity=[];
++             obj.FullBufferTraffic="";
++            % Remove connection context to PHY
++            obj.PhyEntity.RemoveConnection(); %nrUEPHY.m
++            % Remove connection context to MAC
++            obj.MACEntity.RemoveConnection(); %nrUEMAC.m
++            
++            obj.ConnectionState = "Idle";
++            paramToClear={'NCellID','RNTI','GNBNodeID','GNBNodeName','ULCarrierFrequency','DLCarrierFrequency',...
++                'ReceiveFrequency','MUMIMOEnabled'};
++            for idx=1:numel(paramToClear)
++                obj.(paramToClear{idx}) = [];
++            end
++            
++
++
++
++
++        end
++
++        function reAddConnection(obj,connectionConfig)
++             %addConnection Add connection context to UE
++
++            obj.NCellID = connectionConfig.NCellID;
++            obj.RNTI = connectionConfig.RNTI;
++            obj.ConnectionState = "Connected";
++            obj.GNBNodeID = connectionConfig.GNBID;
++            obj.GNBNodeName = connectionConfig.GNBName;
++            obj.ULCarrierFrequency = connectionConfig.ULCarrierFrequency;
++            obj.DLCarrierFrequency = connectionConfig.DLCarrierFrequency;
++            obj.ReceiveFrequency = connectionConfig.DLCarrierFrequency;
++            obj.MUMIMOEnabled = strcmp(connectionConfig.CSIReportConfiguration.CodebookType, 'Type2');
++            % Add connection context to MAC
++            macConnectionParam = {'RNTI', 'GNBID', 'GNBName' 'NCellID', 'SchedulingType', 'NumHARQ', ...
++                'DuplexMode', 'DLULConfigTDD', 'RBGSizeConfiguration', 'CSIRSConfiguration', 'SRSConfiguration', 'NumResourceBlocks', ...
++                'BSRPeriodicity', 'CSIReportPeriod', 'InitialCQIDL', 'SubcarrierSpacing'};
++            macConnectionInfo = struct();
++            for j=1:numel(macConnectionParam)
++                macConnectionInfo.(char(macConnectionParam{j})) = connectionConfig.(char(macConnectionParam{j}));
++            end
++            % Convert the SCS value from Hz to kHz
++            subcarrierSpacingInKHZ = connectionConfig.SubcarrierSpacing/1e3;
++            macConnectionInfo.SubcarrierSpacing = subcarrierSpacingInKHZ;
++            obj.MACEntity.reAddConnection(macConnectionInfo); %nrUEMAC.m
+ 
+             % Add connection context to PHY
+             phyConnectionParam = {'RNTI', 'NCellID', 'DuplexMode', 'NumResourceBlocks', ...
+@@ -336,7 +430,7 @@
+                 phyConnectionInfo.(char(phyConnectionParam{j})) = connectionConfig.(char(phyConnectionParam{j}));
+             end
+             phyConnectionInfo.SubcarrierSpacing = subcarrierSpacingInKHZ;
+-            obj.PhyEntity.addConnection(phyConnectionInfo);
++            obj.PhyEntity.addConnection(phyConnectionInfo);  %nrUEPHY.m
+             if strcmp(obj.PHYAbstractionMethod, "none")
+                 obj.PhyEntity.RVSequence = connectionConfig.RVSequence;
+             end
+@@ -348,9 +442,11 @@
+                 rlcConnectionInfo.(char(rlcConnectionParam{j})) = connectionConfig.(char(rlcConnectionParam{j}));
+             end
+             obj.FullBufferTraffic = rlcConnectionInfo.FullBufferTraffic;
+-            addRLCBearer(obj, rlcConnectionInfo);
++            addRLCBearer(obj, rlcConnectionInfo); %RLC 用于连接节点的MAC和Traffic层
++
+         end
+ 
++
+         function updateSRSPeriod(obj, srsPeriod)
+             % Update the period of existing SRS configuration
+ 
+@@ -431,7 +527,7 @@
+         end
+     end
+ 
+-    methods(Access = protected)
++    methods%(Access = protected)
+         function setLayerInterfaces(obj)
+             %setLayerInterfaces Set inter-layer interfaces
+ 
+diff -ruN /c/ProgramData/MATLAB/SupportPackages/R2024b/toolbox/comm/supportpackages/wirelessnetwork/wirelessnetwork_backup/wirelessNetworkSimulator.m /c/ProgramData/MATLAB/SupportPackages/R2024b/toolbox/comm/supportpackages/wirelessnetwork/wirelessnetwork/wirelessNetworkSimulator.m
+--- /c/ProgramData/MATLAB/SupportPackages/R2024b/toolbox/comm/supportpackages/wirelessnetwork/wirelessnetwork_backup/wirelessNetworkSimulator.m	2024-01-08 17:21:44.000000000 +0800
++++ /c/ProgramData/MATLAB/SupportPackages/R2024b/toolbox/comm/supportpackages/wirelessnetwork/wirelessnetwork/wirelessNetworkSimulator.m	2025-02-14 16:46:57.210043500 +0800
+@@ -34,7 +34,7 @@
+ 
+     %   Copyright 2022-2024 The MathWorks, Inc.
+ 
+-    properties (SetAccess = protected)
++    properties %(SetAccess = protected)
+         %CurrentTime Current simulation time in seconds
+         CurrentTime = 0
+ 
+@@ -51,7 +51,7 @@
+         Nodes = {}
+     end
+ 
+-    properties (Access = protected)
++    properties %(Access = protected)
+         %Actions List of actions queued for future processing
+         Actions
+ 
+@@ -291,16 +291,17 @@
+             simulationDuration = max(round(simulationDuration, 9), 1e-9);
+             % Check whether simulator needs reset or not
+             coder.internal.errorIf(obj.ResetRequired, 'wirelessnetwork:wirelessNetworkSimulator:InvalidState');
+-            obj.ResetRequired = true;
++            obj.ResetRequired = false; %(Su) true
+             obj.EndTime = simulationDuration;
+ 
+             % Initialize simulation parameters
+             recentlyRunNodesFlag = false(obj.NumNodes, 1); % List of nodes ran in the current step
+             % Run simulator
+-            while(obj.CurrentTime <= simulationDuration)
++            while(obj.CurrentTime < simulationDuration) % (Su) <=
+                 % Run nodes which are required to run at current time with 1 nanosecond
+                 % precision
++               %disp(['obj.CurrentTime:          ',num2str(obj.CurrentTime)]);
+                 for nodeIdx = 1:obj.NumNodes
+                     if obj.NodeNextInvokeTimes(nodeIdx) - obj.CurrentTime < 1e-9
+                         obj.NodeNextInvokeTimes(nodeIdx) = run(obj.Nodes{nodeIdx}, obj.CurrentTime);
+@@ -318,7 +319,8 @@
+                 processActions(obj, lastRunTime);
+ 
+                 % Calculate invoke time for next run
+-                nextRunTime = nextInvokeTime(obj);
++                % Get minimum time from next invoke times of nodes and actions
++                nextRunTime = nextInvokeTime(obj); 
+ 
+                 % Advance the simulation time
+                 lastRunTime = obj.CurrentTime;
+@@ -590,13 +592,14 @@
+             numRecentlyRunNodes = numel(recentlyRunNodesIdx);
+             numNodes = obj.NumNodes;
+             rxNodes = obj.Nodes;
+-
++            
+             % Get transmitted data (if any) from all the nodes recently run
+             for txIdx = 1:numRecentlyRunNodes
+                 txNode = recentlyRunNodes{txIdx};
+                 txData = pullTransmittedData(txNode);
+-
++               
+                 % Distribute each of the transmitted packets in the transmit node
++                
+                 for pktIdx = 1:numel(txData)
+                     txPacket = txData(pktIdx);
+

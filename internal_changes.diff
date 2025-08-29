@@ -1,0 +1,739 @@
+diff -ruN "/c/Program Files/MATLAB/R2024b/toolbox/5g/5g/+nr5g/+internal_backup/nrGNBAbstractPHY.m" "/c/Program Files/MATLAB/R2024b/toolbox/5g/5g/+nr5g/+internal/nrGNBAbstractPHY.m"
+--- "/c/Program Files/MATLAB/R2024b/toolbox/5g/5g/+nr5g/+internal_backup/nrGNBAbstractPHY.m"	2024-07-13 03:10:12.000000000 +0800
++++ "/c/Program Files/MATLAB/R2024b/toolbox/5g/5g/+nr5g/+internal/nrGNBAbstractPHY.m"	2025-06-08 16:16:24.327823200 +0800
+@@ -80,9 +81,17 @@
+             % Set PHY abstraction specific context
+             % Initialize L2SMs
+             obj.L2SMs = [obj.L2SMs; nr5g.internal.L2SM.initialize(obj.CarrierConfig, connectionConfig.NumHARQ, 1)];
++          
+             obj.L2SMsSRS = [obj.L2SMsSRS; nr5g.internal.L2SM.initialize(obj.CarrierConfig)];
++           
+             obj.CSIMeasurementSignalDLType = connectionConfig.CSIMeasurementSignalDLType;
+         end
++    
++        
++        function addSRSconfigure(obj,connectionConfig)
++                addSRSconfigure@nr5g.internal.nrGNBPHY(obj,connectionConfig);%调用父类
++                obj.L2SMsSRS = [obj.L2SMsSRS; nr5g.internal.L2SM.initialize(obj.CarrierConfig)];
++        end
+ 
+         function data = pdschData(obj, pdschInfo, macPDU)
+             % Return the MAC packet without any PHY processing
+@@ -249,8 +258,9 @@
+             % Measure channel quality for each SRS
+             for i=1:numSRSPkts
+                 srsPacket = srsPackets(i);
+-                rnti = srsPacket.Metadata.RNTI;
+-
++                %rnti = srsPacket.Metadata.RNTI;
++                rnti=srsPacket.TransmitterID-2;% numCells
++            
+                 % PUSCH configuration
+                 puschConfiguration = nrPUSCHConfig;
+                 puschConfiguration.NumLayers = 1;
+@@ -358,19 +368,29 @@
+             intfPktCount = 0;
+ 
+             % Divide relevant packets as packets of interest and interfering packets
+-            for pktIdx = 1:numPkts
+-                if relevantPackets(pktIdx).Metadata.PacketType==packetType && ...
+-                        obj.CarrierInformation.NCellID ~= relevantPackets(pktIdx).Metadata.NCellID
+-                    % For CSI-RS packet, only consider CSI-RS from other cells as
+-                    % interference. Likewise for SRS
+-                    intfPktCount = intfPktCount + 1;
+-                    interferingPackets(intfPktCount) = relevantPackets(pktIdx);
+-                elseif (relevantPackets(pktIdx).Metadata.PacketType==packetType && ...
+-                        obj.CarrierInformation.NCellID == relevantPackets(pktIdx).Metadata.NCellID)
+-                    pktOfInterestCount = pktOfInterestCount + 1;
+-                    packetsofInterest(pktOfInterestCount) = relevantPackets(pktIdx);
++            
++                for pktIdx = 1:numPkts
++                    if packetType~=2
++                        if relevantPackets(pktIdx).Metadata.PacketType==packetType && ...
++                                obj.CarrierInformation.NCellID ~= relevantPackets(pktIdx).Metadata.NCellID
++                            % For CSI-RS packet, only consider CSI-RS from other cells as
++                            % interference. Likewise for SRS
++                            intfPktCount = intfPktCount + 1;
++                            interferingPackets(intfPktCount) = relevantPackets(pktIdx);
++                        elseif (relevantPackets(pktIdx).Metadata.PacketType==packetType && ...
++                                obj.CarrierInformation.NCellID == relevantPackets(pktIdx).Metadata.NCellID)
++                            pktOfInterestCount = pktOfInterestCount + 1;
++                            packetsofInterest(pktOfInterestCount) = relevantPackets(pktIdx);
++                        end
++                    else % For packetType = 2, i.e., SRS packets, they are not considered as interference packets.
++                        if relevantPackets(pktIdx).Metadata.PacketType==packetType
++                             pktOfInterestCount = pktOfInterestCount + 1;
++                            packetsofInterest(pktOfInterestCount) = relevantPackets(pktIdx);
++                        end
++                    end
++
+                 end
+-            end
++            
+             interferingPackets = interferingPackets(1:intfPktCount);
+             packetsofInterest = packetsofInterest(1:pktOfInterestCount);
+         end
+diff -ruN "/c/Program Files/MATLAB/R2024b/toolbox/5g/5g/+nr5g/+internal_backup/nrGNBMAC.m" "/c/Program Files/MATLAB/R2024b/toolbox/5g/5g/+nr5g/+internal/nrGNBMAC.m"
+--- "/c/Program Files/MATLAB/R2024b/toolbox/5g/5g/+nr5g/+internal_backup/nrGNBMAC.m"	2024-06-22 01:09:24.000000000 +0800
++++ "/c/Program Files/MATLAB/R2024b/toolbox/5g/5g/+nr5g/+internal/nrGNBMAC.m"	2025-06-09 17:00:52.377826600 +0800
+@@ -20,7 +20,7 @@
+ 
+     %   Copyright 2022-2024 The MathWorks, Inc.
+ 
+-    properties(Hidden)
++    properties%(Hidden)
+         %Scheduler Scheduler object
+         Scheduler
+ 
+@@ -83,7 +83,7 @@
+         PUSCHDMRSAdditionalPosTypeB = 0;
+     end
+ 
+-    properties(SetAccess = protected)
++    properties%(SetAccess = protected)
+         %UEs RNTIs of the UEs connected to the gNB
+         UEs
+ 
+@@ -95,10 +95,11 @@
+         % array is a structure with two fields:
+         %   ID - Node id of the UE
+         %   Name - Node Name of the UE
++        %   RNTI
+         UEInfo
+     end
+ 
+-    properties (Access = protected)
++    properties % (Access = protected)
+         %DownlinkTxContext Tx context used for PDSCH transmissions
+         % N-by-P cell array where is N is number of UEs and 'P' is number of
+         % symbols in a 10 ms frame. An element at index (i, j) stores the
+@@ -172,6 +173,7 @@
+             obj.NumResourceBlocks = param.NumResourceBlocks;
+             obj.DuplexModeNumber = 0;
+             slotDuration = 1/(obj.SubcarrierSpacing/15); % In ms
++            
+             if strcmp(param.DuplexMode, "TDD")
+                 obj.DuplexModeNumber = 1;
+                 configTDD = param.DLULConfigTDD;
+@@ -232,6 +234,13 @@
+             % Set the MCS tables as matrices
+             obj.MCSTableUL = nr5g.internal.MACConstants.MCSTable;
+             obj.MCSTableDL = nr5g.internal.MACConstants.MCSTable;
++
++            obj.CSIRSTxInfo = calculateCSIRSPeriodicity(obj, [obj.CSIRSConfiguration obj.CSIRSConfigurationRSRP]);
++        end
++        function addSRSconfigure(obj,param)
++  
++               obj.SRSConfiguration = [obj.SRSConfiguration param.SRSConfiguration];
++               obj.SRSRxInfo = calculateSRSPeriodicity(obj, obj.SRSConfiguration);
+         end
+ 
+         function addConnection(obj, ueInfo)
+@@ -257,7 +266,7 @@
+             % SRSConfiguration         - SRS configuration information specified as an object of type nrSRSConfig
+ 
+             obj.UEs = [obj.UEs ueInfo.RNTI];
+-            nodeInfo = struct('ID', ueInfo.UEID, 'Name', ueInfo.UEName);
++            nodeInfo = struct('ID', ueInfo.UEID, 'Name', ueInfo.UEName,'RNTI',ueInfo.RNTI);
+             obj.UEInfo = [obj.UEInfo nodeInfo];
+ 
+             if isfield(ueInfo, 'CSIRSConfigurationRSRP') && ~isempty(ueInfo.CSIRSConfigurationRSRP)
+@@ -278,11 +287,54 @@
+                 end
+             end
+ 
+             obj.SRSConfiguration = [obj.SRSConfiguration ueInfo.SRSConfiguration];
+             % Update the MAC context after each UE is connected
+             updateMACContext(obj);
+         end
+ 
++        function RemoveConnection(obj, ueInfo)
++            obj.UEs=obj.UEs(obj.UEs~=ueInfo.RNTI);
++            obj.UEInfo([obj.UEInfo.ID]==ueInfo.UEID)=[];
++
++            if isfield(ueInfo, 'CSIRSConfigurationRSRP') && ~isempty(ueInfo.CSIRSConfigurationRSRP) %如果存在，事实上并不存在
++                obj.CSIRSConfigurationRSRP =obj.CSIRSConfigurationRSRP( obj.CSIRSConfigurationRSRP~=ueInfo.CSIRSConfigurationRSRP);
++            end
++            % 如果CSI-RS是unique的，那么就需要特别处理，事实上并不是特殊的，所以不用特别处理
++
++           % obj.SRSConfiguration(end)=[]; %直接去除最后一个
++
++        end
++        function reAddConnection(obj, ueInfo)
++            obj.UEs = [obj.UEs ueInfo.RNTI];
++            nodeInfo = struct('ID', ueInfo.UEID, 'Name', ueInfo.UEName,'RNTI',ueInfo.RNTI);
++            obj.UEInfo = [obj.UEInfo nodeInfo];
++
++            if isfield(ueInfo, 'CSIRSConfigurationRSRP') && ~isempty(ueInfo.CSIRSConfigurationRSRP)
++                obj.CSIRSConfigurationRSRP = [obj.CSIRSConfigurationRSRP ueInfo.CSIRSConfigurationRSRP];
++            end
++
++            % Append CSI-RS configuration (only if it is unique)
++            if ~isempty(ueInfo.CSIRSConfiguration)
++                uniqueConfiguration = true;
++                for idx = 1:numel(obj.CSIRSConfiguration)
++                    if isequal(obj.CSIRSConfiguration(idx), ueInfo.CSIRSConfiguration)
++                        uniqueConfiguration = false;
++                        break;
++                    end
++                end
++                if uniqueConfiguration
++                    obj.CSIRSConfiguration = [obj.CSIRSConfiguration ueInfo.CSIRSConfiguration];
++                end
++            end
++
++            obj.SRSConfiguration = [obj.SRSConfiguration ueInfo.SRSConfiguration];
++            % Update the MAC context after each UE is connected
++            reUpdateMACContext(obj);
++            obj.CSIRSTxInfo = ueInfo.CSIRSRxInfo;
++            obj.SRSRxInfo = ueInfo.SRSTxInfo;
++
++        end
++
+         function nextInvokeTime = run(obj, currentTime, packets)
+             %run Run the gNB MAC layer operations and return the next invoke time in nanoseconds
+             %   NEXTINVOKETIME = run(OBJ, CURRENTTIME, PACKETS) runs the
+@@ -323,7 +375,9 @@
+             end
+ 
+             % Receive and process control packet
+-            controlRx(obj, packets);
++            if ~isempty(obj.UEInfo) % If the gNB is connected to a UE, execute the receive function; if the gNB is not connected to any UE, skip directly.
++                controlRx(obj, packets);
++            end
+ 
+             % Avoid running MAC operations more than once in the same symbol
+             symNumFrame = obj.CurrSlot * obj.NumSymbols + obj.CurrSymbol;
+@@ -590,7 +644,8 @@
+             % CURRENTTIME is the current time (in nanoseconds).
+ 
+             symbolNumFrame = obj.CurrSlot*obj.NumSymbols + obj.CurrSymbol; % Current symbol number in the 10 ms frame
+-            for rnti = 1:length(obj.UEs) % For all UEs
++            for rntiIdx = 1:length(obj.UEs)
++                rnti = obj.UEInfo(rntiIdx).RNTI;
+                 downlinkGrant = obj.DownlinkTxContext{rnti, symbolNumFrame + 1};
+                 % If there is any downlink grant corresponding to which a transmission is scheduled at the current symbol
+                 if ~isempty(downlinkGrant)
+@@ -658,11 +713,16 @@
+                 grantFieldNames = obj.ULGrantFieldNames;
+                 for i = 1:length(resourceAssignmentsUL) % For each UL assignment
+                     grant = resourceAssignmentsUL(i);
++                    if ~any([obj.UEInfo.RNTI] == grant.RNTI)
++                        continue; % Discard this grant and skip this iteration.
++                    end
++
+                     for ind = 1:obj.ULGrantFieldNamesCount
+                         uplinkGrant.(grantFieldNames{ind}) = grant.(grantFieldNames{ind});
+                     end
+                     % Construct packet information
+-                    pktInfo.DirectToDestination = obj.UEInfo(grant.RNTI).ID;                 
++                    pktInfo.DirectToDestination = obj.UEInfo([obj.UEInfo.RNTI]==grant.RNTI).ID; 
+                     pktInfo.Data = uplinkGrant;
+                     pktInfo.Metadata.PacketType = obj.ULGrant;
+                     pktInfo.Metadata.RNTI = grant.RNTI;
+@@ -678,11 +738,14 @@
+                 grantFieldNames = obj.DLGrantFieldNames;
+                 for i = 1:length(resourceAssignmentsDL) % For each DL assignment
+                     grant = resourceAssignmentsDL(i);
++                    if ~any([obj.UEInfo.RNTI] == grant.RNTI) %Su
++                        continue; 
++                    end
+                     for ind = 1:obj.DLGrantFieldNamesCount
+                         downlinkGrant.(grantFieldNames{ind}) = grant.(grantFieldNames{ind});
+                     end
+                     % Construct packet information and send the DL grant out-of-band to UE's MAC
+-                    pktInfo.DirectToDestination = obj.UEInfo(grant.RNTI).ID;
++                    pktInfo.DirectToDestination = obj.UEInfo([obj.UEInfo.RNTI]==grant.RNTI).ID;
+                     pktInfo.Data = downlinkGrant;
+                     pktInfo.Metadata.PacketType = obj.DLGrant;
+                     pktInfo.Metadata.RNTI = grant.RNTI;
+@@ -711,10 +774,10 @@
+                     pktType = pktInfo.Metadata.PacketType;
+                     rnti = pktInfo.Metadata.RNTI;
+                     switch pktType
+-                        case obj.BSR % BSR received
++                        case obj.BSR % BSR received 1
+                             processMACControlElement(obj.Scheduler, rnti, pktInfo, obj.LCGPriority(rnti,:));
+ 
+-                        case obj.PDSCHFeedback % PDSCH feedback received
++                        case obj.PDSCHFeedback % PDSCH feedback received 4
+                             feedbackList = pktInfo.Data;
+                             symNumFrame = obj.CurrSlot*obj.NumSymbols + obj.CurrSymbol;
+                             for harqIdx = 1:obj.NumHARQ % Check for all HARQ processes
+@@ -730,7 +793,7 @@
+                                 end
+                             end
+ 
+-                        case obj.CSIReport % CSI report received containing RI, PMI and CQI
++                        case obj.CSIReport % CSI report received containing RI, PMI and CQI 5
+                             csiReport = pktInfo.Data;
+                             channelQualityInfo.RNTI = rnti;
+                             channelQualityInfo.RankIndicator = csiReport.RankIndicator;
+@@ -739,7 +802,7 @@
+                             channelQualityInfo.W = csiReport.W;
+                             updateChannelQualityDL(obj.Scheduler, channelQualityInfo);
+ 
+-                        case obj.CSIReportRSRP % CSI report received containing CRI and RSRP
++                        case obj.CSIReportRSRP % CSI report received containing CRI and RSRP 6
+                             csiReport = pktInfo.Data;
+                             channelQualityInfo.RNTI = rnti;
+                             channelQualityInfo.CRI = csiReport.CRI;
+@@ -816,6 +880,50 @@
+             % Calculate unique SRS reception time and periodicity
+             obj.SRSRxInfo = calculateSRSPeriodicity(obj, obj.SRSConfiguration);
+         end
++
++
++        function reUpdateMACContext(obj)
++            %updateMACContext Update the MAC context when new UE is connected
++
++            obj.StatTransmittedPackets = [obj.StatTransmittedPackets; 0];
++            obj.StatTransmittedBytes = [obj.StatTransmittedBytes; 0];
++            obj.StatRetransmittedPackets = [obj.StatRetransmittedPackets; 0];
++            obj.StatRetransmittedBytes = [obj.StatRetransmittedBytes; 0];
++            obj.StatReceivedPackets = [obj.StatReceivedPackets; 0];
++            obj.StatReceivedBytes = [obj.StatReceivedBytes; 0];
++
++            obj.ElapsedTimeSinceLastLCP = [obj.ElapsedTimeSinceLastLCP; 0];
++            % Configuration of logical channels for UEs
++            obj.LogicalChannelConfig = [obj.LogicalChannelConfig; cell(1, obj.MaxLogicalChannels)];
++            obj.LCHBjList = [obj.LCHBjList; zeros(1, obj.MaxLogicalChannels)];
++            obj.LCHBufferStatus = [obj.LCHBufferStatus; zeros(1, obj.MaxLogicalChannels)];
++            % Initialize LCG with lowest priority level for all the UEs. Here
++            % lowest priority level is indicated by higher value
++            obj.LCGPriority = [obj.LCGPriority; obj.MaxPriorityForLCH*ones(1,8)];
++            % Extend the cell array to hold the RLC entity callbacks of the UE
++            obj.RLCTxFcn = [obj.RLCTxFcn; cell(1, obj.MaxLogicalChannels)];
++            obj.RLCRxFcn = [obj.RLCRxFcn; cell(1, obj.MaxLogicalChannels)];
++
++            % Create Tx/Rx contexts
++            obj.UplinkRxContext = [obj.UplinkRxContext; cell(1, obj.NumSymInFrame)];
++            obj.DownlinkTxContext = [obj.DownlinkTxContext; cell(1, obj.NumSymInFrame)];
++            obj.RxContextFeedback = [obj.RxContextFeedback; cell(1, obj.NumSymInFrame, obj.NumHARQ)];
++
++            % % Calculate unique CSI-RS transmission time and periodicity
++           
++            % obj.CSIRSTxInfo = calculateCSIRSPeriodicity(obj, [obj.CSIRSConfiguration obj.CSIRSConfigurationRSRP]);
++
++            % % Calculate unique SRS reception time and periodicity
++            % obj.SRSRxInfo = calculateSRSPeriodicity(obj, obj.SRSConfiguration);
++
++
++
++        end
++       
++
++
++
++
+         function dlControlRequest(obj, currentTime)
+             %dlControlRequest Request from MAC to PHY to send non-data DL transmissions
+             %   dlControlRequest(OBJ) sends a request to PHY for non-data downlink
+@@ -878,29 +986,66 @@
+                     carrier = obj.CarrierConfigUL;
+                     carrier.NSlot = obj.CurrSlot;
+                     carrier.NFrame = obj.CurrFrame;
+-                    for rnti=1:length(obj.UEs) % Send SRS reception request to PHY for the UEs
+-                        srsConfigUE = obj.SRSConfiguration(rnti);
+-                        if ~isempty(srsConfigUE)
+-                            srsLocations = srsConfigUE.SymbolStart : (srsConfigUE.SymbolStart + srsConfigUE.NumSRSSymbols-1); % SRS symbol locations
+-                            % Check whether the mode is FDD OR if it is TDD then all the SRS symbols must be UL symbols
+-                            if obj.DuplexModeNumber == 0 || all(obj.DLULSlotFormat(obj.CurrDLULSlotIndex + 1, srsLocations+1) == obj.ULType)
+-                                srsInd = nrSRSIndices(carrier, srsConfigUE);
+-                                if ~isempty(srsInd) % Empty value means SRS is not scheduled to be received in the current slot for this UE
+-                                    numSRSUEs = numSRSUEs+1;
+-                                    ulControlType(numSRSUEs) = 1; % SRS PDU
+-                                    ulControlPDUs{numSRSUEs}{1} = rnti;
+-                                    ulControlPDUs{numSRSUEs}{2} = srsConfigUE;
++
++                    for idx=1:length(obj.SRSConfiguration) % Send SRS reception request to PHY for the UEs
++                            srsConfigUE = obj.SRSConfiguration(idx);
++                            if ~isempty(srsConfigUE)
++                                srsLocations = srsConfigUE.SymbolStart : (srsConfigUE.SymbolStart + srsConfigUE.NumSRSSymbols-1); % SRS symbol locations
++                                % Check whether the mode is FDD OR if it is TDD then all the SRS symbols must be UL symbols
++                                if obj.DuplexModeNumber == 0 || all(obj.DLULSlotFormat(obj.CurrDLULSlotIndex + 1, srsLocations+1) == obj.ULType)
++                                    srsInd = nrSRSIndices(carrier, srsConfigUE);
++                                    if ~isempty(srsInd) % Empty value means SRS is not scheduled to be received in the current slot for this UE
++                                        numSRSUEs = numSRSUEs+1;
++                                        ulControlType(numSRSUEs) = 1; % SRS PDU
++                                        ulControlPDUs{numSRSUEs}{1} = idx;
++                                        ulControlPDUs{numSRSUEs}{2} = srsConfigUE;
++                                    end
+                                 end
+                             end
+-                        end
+                     end
++
+                     ulControlType = ulControlType(1:numSRSUEs);
+                     ulControlPDUs = ulControlPDUs(1:numSRSUEs);
+                     obj.TimestampInfo.Timestamp = currentTime;
+                     obj.UlControlRequestFcn(ulControlType, ulControlPDUs, obj.TimestampInfo); % Send UL control request to PHY
+-                    if numSRSUEs > 0
++                    %if numSRSUEs > 0
+                         obj.LastRxTime = currentTime;
+-                    end
++                    %end
+                 end
+             end
+         end
+diff -ruN "/c/Program Files/MATLAB/R2024b/toolbox/5g/5g/+nr5g/+internal_backup/nrGNBPHY.m" "/c/Program Files/MATLAB/R2024b/toolbox/5g/5g/+nr5g/+internal/nrGNBPHY.m"
+--- "/c/Program Files/MATLAB/R2024b/toolbox/5g/5g/+nr5g/+internal_backup/nrGNBPHY.m"	2024-06-22 01:09:24.000000000 +0800
++++ "/c/Program Files/MATLAB/R2024b/toolbox/5g/5g/+nr5g/+internal/nrGNBPHY.m"	2025-06-08 18:10:17.988844100 +0800
+@@ -17,7 +17,7 @@
+         UEInfo
+     end
+ 
+-    properties (Access = protected)
++    properties %(Access = protected)
+         %CSIRSInfo CSI-RS transmission information sent by MAC for the current slot
+         % It is an array of objects of type nrCSIRSConfig. Each element contains a
+         % CSI-RS configuration which corresponds to a CSI-RS packet. Value as empty
+@@ -90,6 +90,16 @@
+             % Set NR packet fields 
+             obj.PacketStruct.CenterFrequency = obj.CarrierInformation.DLCarrierFrequency;
+             obj.PacketStruct.Bandwidth = obj.CarrierInformation.ChannelBandwidth;
++
++          
++        end
++        %(Su)
++        function addSRSconfigure(obj,connectionConfig)
++            rxEndStruct = obj.PacketRxEndedStruct;
++            rxEndStruct.DuplexMode = connectionConfig.DuplexMode;
++            rxEndStruct.RNTI = connectionConfig.RNTI-2;
++            rxEndStruct.LinkType = "UL";
++            obj.PacketReceptionEnded = [obj.PacketReceptionEnded; rxEndStruct];
+         end
+ 
+         function addConnection(obj, connectionConfig)
+@@ -138,6 +148,14 @@
+             obj.ReTxTagBuffer = [obj.ReTxTagBuffer; cell(1,connectionConfig.NumHARQ)];
+         end
+ 
++        function RemoveConnection(obj, ueInfo)
++            obj.UEInfo([obj.UEInfo.RNTI]==ueInfo.RNTI)=[];
++
++        end
++
++
++
++
+         function registerMACHandle(obj, sendMACPDUFcn, sendULChannelQualityFcn)
+             %registerMACHandle Register MAC interface functions at PHY, for sending information to MAC
+ 
+@@ -547,7 +565,7 @@
+             % Create CSI-RS packet(s) and send
+             pktList = csirsPacket(obj, obj.CSIRSInfo, csirsPacketList, currTimingInfo.Time/1e9);
+             for i=1:numel(pktList)
+-                obj.SendPacketFcn(pktList(i));
++                obj.SendPacketFcn(pktList(i)); % addToTxBuffer
+                 % CSI-RS packet is single packet transmitted to all the
+                 % nodes. So, update the context for all the nodes
+                 for ueIdx=1:numel(obj.UEInfo)
+@@ -658,7 +676,16 @@
+             duration = endTime-startTime;
+             for i=1:length(srsMeasurement)
+                 srsInfo = srsMeasurement(i);
+-                obj.SRSIndicationFcn(srsInfo);
++                if ~isempty(obj.UEInfo)
++                    for idx=1:length(obj.UEInfo)
++                        if obj.UEInfo(idx).ID-2==srsInfo.RNTI
++                            obj.SRSIndicationFcn(srsInfo);%传给MAC nrGNBMAC.srsIndication 更新信道质量，从而去调度。但是只将和连接的UE有关的srs传上去
++                        end
++                    end
++                end
++                % if ~isempty(obj.UEInfo)
++                %     obj.SRSIndicationFcn(srsInfo);
++                % end
+                 rnti = srsInfo.RNTI;
+                 obj.PacketReceptionEnded(rnti).ChannelMeasurements.SINR = effectiveSINR(i);
+                 obj.PacketReceptionEnded(rnti).ChannelMeasurements.SRSBasedULMeasurements = struct('RI',srsInfo.RankIndicator,'TPMI',srsInfo.TPMI,'MCSIndex',srsInfo.MCSIndex);
+
+
+diff -ruN "/c/Program Files/MATLAB/R2024b/toolbox/5g/5g/+nr5g/+internal_backup/nrUEContext.m" "/c/Program Files/MATLAB/R2024b/toolbox/5g/5g/+nr5g/+internal/nrUEContext.m"
+--- "/c/Program Files/MATLAB/R2024b/toolbox/5g/5g/+nr5g/+internal_backup/nrUEContext.m"	2024-06-22 01:09:24.000000000 +0800
++++ "/c/Program Files/MATLAB/R2024b/toolbox/5g/5g/+nr5g/+internal/nrUEContext.m"	2025-05-31 10:53:47.844905000 +0800
+@@ -82,7 +82,7 @@
+         CustomContext
+     end
+ 
+-    properties(Hidden)
++    properties%(Hidden)
+         %XOverheadPDSCH Additional overheads in PDSCH transmission
+         XOverheadPDSCH = 0;
+ 
+@@ -476,7 +476,12 @@
+             harqIndex = rxResultInfo.HARQID+1;
+             rxResult = rxResultInfo.RxResult;
+ 
+-            isNewTx = strcmp(obj.HarqStatusDL{harqIndex}.Type, 'newTx');
++           % isNewTx = strcmp(obj.HarqStatusDL{harqIndex}.Type, 'newTx');
++            if isstruct(obj.HarqStatusDL{harqIndex})
++                isNewTx = strcmp(obj.HarqStatusDL{harqIndex}.Type, 'newTx');
++           else
++                isNewTx = false;
++           end
+             % If DL link adaptation is enabled and it is a new transmission then update
+             % MCS offset for the received feedback.
+             if isNewTx && ~isempty(schedulerConfig.LinkAdaptationConfigDL)
+@@ -537,9 +542,16 @@
+             %                            The structure contains the fields InitialOffset, StepUp and StepDown fields
+ 
+             harqIndex = rxResultInfo.HARQID+1;
++            %disp(harqIndex);
+             rxResult = rxResultInfo.RxResult;
+ 
+-            isNewTx = strcmp(obj.HarqStatusUL{harqIndex}.Type, 'newTx');
++           %isNewTx = strcmp(obj.HarqStatusUL{harqIndex}.Type, 'newTx'); 
++           if isstruct(obj.HarqStatusUL{harqIndex})
++                isNewTx = strcmp(obj.HarqStatusUL{harqIndex}.Type, 'newTx');
++           else
++                isNewTx = false;
++           end
++
+             % If UL link adaptation is enabled and it is a new transmission then update
+             % MCS offset for the received feedback.
+             if isNewTx && ~isempty(schedulerConfig.LinkAdaptationConfigUL)
+diff -ruN "/c/Program Files/MATLAB/R2024b/toolbox/5g/5g/+nr5g/+internal_backup/nrUEMAC.m" "/c/Program Files/MATLAB/R2024b/toolbox/5g/5g/+nr5g/+internal/nrUEMAC.m"
+--- "/c/Program Files/MATLAB/R2024b/toolbox/5g/5g/+nr5g/+internal_backup/nrUEMAC.m"	2024-04-26 15:37:42.000000000 +0800
++++ "/c/Program Files/MATLAB/R2024b/toolbox/5g/5g/+nr5g/+internal/nrUEMAC.m"	2025-02-06 16:19:50.534672900 +0800
+@@ -527,6 +527,176 @@
+             obj.PacketStruct.Metadata.RNTI = obj.RNTI;
+         end
+ 
++        function RemoveConnection(obj)
++            paramToClear = {'RNTI', 'NumResourceBlocks', 'SchedulingType', 'DuplexMode','DLULConfigTDD','BSRPeriodicity',...
++                'CSIReportPeriod','DLULSlotFormat','NumDLULPatternSlots','NCellID','NumHARQ','SubcarrierSpacing','LCHBufferStatus',...
++                'LogicalChannelConfig','LCHBjList','CSIRSConfiguration',...
++                'SRSConfiguration','CarrierConfigUL','CarrierConfigDL'};
++
++
++            for idx=1:numel(paramToClear)
++                obj.(paramToClear{idx}) = [];
++            end
++            obj.PacketStruct.DirectToDestination = 0;
++            obj.ElapsedTimeSinceLastLCP = 0;
++            % Remove the metadata for the packet
++            obj.PacketStruct= structfun(@(x) [], obj.PacketStruct , 'UniformOutput', false);
++            % Remove NID and RNTI at the connection set-up time (for runtime optimization)
++            obj.PDSCHInfo.PDSCHConfig.NID = [];
++            obj.PUSCHInfo.PUSCHConfig.NID = [];
++            obj.CSIMeasurement = structfun(@(x) [], obj.CSIMeasurement , 'UniformOutput', false);
++            
++
++        end
++
++        function reAddConnection(obj,connectionInfo)
++            inputParam = {'RNTI', 'NCellID', 'SubcarrierSpacing', 'SchedulingType', 'NumHARQ', ...
++                'CSIRSConfiguration', 'SRSConfiguration', 'NumResourceBlocks', ...
++                'BSRPeriodicity', 'CSIReportPeriod'};
++
++            for idx=1:numel(inputParam)
++                obj.(inputParam{idx}) = connectionInfo.(inputParam{idx});
++            end
++
++            if ~isempty(connectionInfo.CSIRSConfiguration)
++                obj.XOverheadPDSCH = 18;
++            end
++
++            if strcmp(connectionInfo.DuplexMode, 'FDD')
++                obj.DuplexMode = 0;
++            else
++                obj.DuplexMode = 1;
++            end
++
++            if isfield(connectionInfo, 'CSIRSConfigurationRSRP')
++                obj.CSIRSConfigurationRSRP = connectionInfo.CSIRSConfigurationRSRP;
++            end
++            if isfield(connectionInfo, 'SSBIdx')
++                obj.SSBIdx = connectionInfo.SSBIdx;
++            end
++            if isfield(connectionInfo, 'CSIReportPeriodicityRSRP')
++                obj.CSIReportPeriodicityRSRP = connectionInfo.CSIReportPeriodicityRSRP;
++            end
++
++            obj.GNBInfo  = struct('ID', connectionInfo.GNBID, 'Name', connectionInfo.GNBName);
++            % All the out-of-band packets are sent directly to gNB
++            obj.PacketStruct.DirectToDestination = obj.GNBInfo.ID;
++
++            obj.MACType = 1; % UE MAC
++            slotDuration = 1/(obj.SubcarrierSpacing/15); % In ms
++            obj.SlotDurationInNS = slotDuration * 1e6; % In nanoseconds
++            obj.NumSlotsFrame = 10/slotDuration; % Number of slots in a 10 ms frame
++            obj.NumSymInFrame = obj.NumSlotsFrame*obj.NumSymbols;
++            % Calculate symbol end times (in nanoseconds) in a slot for the given scs
++            obj.SymbolEndTimesInSlot = round(((1:obj.NumSymbols)*slotDuration)/obj.NumSymbols, 4) * 1e6;
++            obj.SymbolDurationsInSlot = obj.SymbolEndTimesInSlot(1:obj.NumSymbols) - [0 obj.SymbolEndTimesInSlot(1:13)];
++
++            % TDD specific configuration
++            if obj.DuplexMode == 1 % TDD
++                obj.DLULConfigTDD = connectionInfo.DLULConfigTDD;
++                obj.NumDLULPatternSlots = obj.DLULConfigTDD.DLULPeriodicity/(obj.SlotDurationInNS*1e-6);
++
++                % All the remaining symbols in DL-UL pattern are assumed to
++                % be guard symbols
++                obj.GuardDuration = (obj.NumDLULPatternSlots * obj.NumSymbols) - ...
++                    (((obj.DLULConfigTDD.NumDLSlots + obj.DLULConfigTDD.NumULSlots)*obj.NumSymbols) + ...
++                    obj.DLULConfigTDD.NumDLSymbols + obj.DLULConfigTDD.NumULSymbols);
++
++                % Set format of slots in the DL-UL pattern. Value 0 means
++                % DL symbol, value 1 means UL symbol while symbols with
++                % value 2 are guard symbols
++                obj.DLULSlotFormat = obj.GuardType * ones(obj.NumDLULPatternSlots, obj.NumSymbols);
++                obj.DLULSlotFormat(1:obj.DLULConfigTDD.NumDLSlots, :) = obj.DLType; % Mark all the symbols of full DL slots as DL
++                obj.DLULSlotFormat(obj.DLULConfigTDD.NumDLSlots + 1, 1 : obj.DLULConfigTDD.NumDLSymbols) = obj.DLType; % Mark DL symbols following the full DL slots
++                obj.DLULSlotFormat(obj.DLULConfigTDD.NumDLSlots + floor(obj.GuardDuration/obj.NumSymbols) + 1, (obj.DLULConfigTDD.NumDLSymbols + mod(obj.GuardDuration, obj.NumSymbols) + 1) : end)  ...
++                    = obj.ULType; % Mark UL symbols at the end of slot before full UL slots
++                obj.DLULSlotFormat((end - obj.DLULConfigTDD.NumULSlots + 1):end, :) = obj.ULType; % Mark all the symbols of full UL slots as UL type
++            end
++
++            % Set the RBG size configuration (for defining number of RBs in
++            % one RBG) to 1 (configuration-1 RBG table) or 2
++            % (configuration-2 RBG table) as defined in 3GPP TS 38.214
++            % Section 5.1.2.2.1. If it is not configured, take default
++            % value as 1.
++            % Calculate RBG size in terms of number of RBs
++            rbgSizeIndex = min(find(obj.NumResourceBlocks <= obj.NominalRBGSizePerBW(:, 1), 1));
++            if connectionInfo.RBGSizeConfiguration == 1
++                obj.RBGSize = obj.NominalRBGSizePerBW(rbgSizeIndex, 2);
++            else % RBGSizeConfig is 2
++                obj.RBGSize = obj.NominalRBGSizePerBW(rbgSizeIndex, 3);
++            end
++
++            obj.PDSCHRxFeedback = -1*ones(obj.NumHARQ, 3);
++            obj.PDSCHRxFeedback(:, 3) = Inf;
++            obj.HARQNDIUL = zeros(obj.NumHARQ, 1); % Initialize NDI of each UL HARQ process to 0
++            obj.HARQNDIDL = zeros(obj.NumHARQ, 1); % Initialize NDI of each DL HARQ process to 0
++
++            % Stores uplink assignments (if any), corresponding to uplink
++            % transmissions starting at different symbols of the frame
++            % obj.UplinkTxContext = cell(obj.NumSymInFrame, 1);
++
++            % Stores downlink assignments (if any), corresponding to
++            % downlink receptions starting at different symbols of the
++            % frame
++            % obj.DownlinkRxContext = cell(obj.NumSymInFrame, 1);
++
++            % % Set non-zero-power (NZP) CSI-RS configuration for the UE
++            % if ~isempty(obj.CSIRSConfiguration)
++            %     obj.NextCSIReportTime = obj.CSIReportPeriod(2)*obj.SlotDurationInNS; % In nanoseconds
++            % end
++
++            % % CSIRS-RSRP configuration for the UE
++            % if ~isempty(obj.CSIRSConfigurationRSRP)
++            %     obj.NextRSRPReportTime = obj.CSIReportPeriodicityRSRP*obj.SlotDurationInNS; % In nanoseconds
++            % end
++
++            % Calculate unique CSI-RS reception slots
++            % csirsResourceConfig = [obj.CSIRSConfiguration obj.CSIRSConfigurationRSRP];
++            % obj.CSIRSRxInfo = calculateCSIRSPeriodicity(obj, csirsResourceConfig); 
++
++            % % Calculate unique SRS transmission time and periodicity
++            % obj.SRSTxInfo = calculateSRSPeriodicity(obj, obj.SRSConfiguration);
++
++            obj.MCSTableUL = nr5g.internal.MACConstants.MCSTable;
++            obj.MCSTableDL = nr5g.internal.MACConstants.MCSTable;
++            obj.LCHBufferStatus = zeros(1, obj.MaxLogicalChannels);
++            obj.LCHBjList = zeros(1, obj.MaxLogicalChannels);
++            obj.LogicalChannelConfig = cell(1, obj.MaxLogicalChannels);
++            obj.ElapsedTimeSinceLastLCP = 0;
++            obj.CSIMeasurement.CQI = connectionInfo.InitialCQIDL*ones(1, obj.NumResourceBlocks);
++
++            % Create carrier configuration object for UL
++            obj.CarrierConfigUL = nrCarrierConfig(SubcarrierSpacing=obj.SubcarrierSpacing, NSizeGrid=obj.NumResourceBlocks);
++            % Create carrier configuration object for DL
++            obj.CarrierConfigDL = nrCarrierConfig(SubcarrierSpacing=obj.SubcarrierSpacing, NSizeGrid=obj.NumResourceBlocks);
++
++            % Set the DMRS configuration
++            obj.PDSCHInfo.PDSCHConfig.DMRS = nrPDSCHDMRSConfig(DMRSConfigurationType=obj.PDSCHDMRSConfigurationType, ...
++                DMRSTypeAPosition=obj.DMRSTypeAPosition);
++            obj.PUSCHInfo.PUSCHConfig.DMRS = nrPUSCHDMRSConfig(DMRSConfigurationType=obj.PUSCHDMRSConfigurationType, ...
++                DMRSTypeAPosition=obj.DMRSTypeAPosition);
++
++            % Fill NID and RNTI at the connection set-up time (for runtime optimization)
++            obj.PDSCHInfo.PDSCHConfig.NID = obj.NCellID;
++            obj.PDSCHInfo.PDSCHConfig.RNTI = obj.RNTI;
++            obj.PUSCHInfo.PUSCHConfig.NID = obj.NCellID;
++            obj.PUSCHInfo.PUSCHConfig.RNTI = obj.RNTI;
++
++            % if isinf(obj.BSRPeriodicity)
++            %     % Disable BSR control element generation when BSR periodicity is infinite
++            %     obj.NextBSRTime = Inf;
++            % end
++
++            % Set the metadata for the packet
++            obj.PacketStruct.Metadata.NCellID = obj.NCellID;
++            obj.PacketStruct.Metadata.RNTI = obj.RNTI;
++
++
++        end
++
++
++
+         function updateBufferStatus(obj, lcBufferStatus)
+             %updateBufferStatus Update the buffer status of the logical channel
+             %
+diff -ruN "/c/Program Files/MATLAB/R2024b/toolbox/5g/5g/+nr5g/+internal_backup/nrUEPHY.m" "/c/Program Files/MATLAB/R2024b/toolbox/5g/5g/+nr5g/+internal/nrUEPHY.m"
+--- "/c/Program Files/MATLAB/R2024b/toolbox/5g/5g/+nr5g/+internal_backup/nrUEPHY.m"	2024-06-22 01:09:24.000000000 +0800
++++ "/c/Program Files/MATLAB/R2024b/toolbox/5g/5g/+nr5g/+internal/nrUEPHY.m"	2025-05-13 19:11:24.129136600 +0800
+ 
+@@ -169,6 +169,22 @@
+             obj.ReTxTagBuffer = cell(1,connectionConfig.NumHARQ);
+         end
+ 
++        function RemoveConnection(obj)
++            obj.RNTI=[];
++            obj.L2SMIUI=[];
++            obj.L2SMCSI=[];
++            obj.CSIReportConfig=[];
++
++            % Clear the CSI-RS reception buffer.
++            if ~isempty(obj.CSIRSInfo)
++                for i = 1:length(obj.CSIRSInfo)
++                    obj.CSIRSInfo{i} = {};
++                end
++            end
++           
++           
++        end
++
+         function registerMACHandle(obj, sendMACPDUFcn, sendDLChannelQualityFcn)
+             %registerMACHandle Register MAC interface functions at PHY, for sending
+             % information to MAC
+@@ -466,6 +482,19 @@
+ 
+         function [estChannelGrid, estChannelGridIntf] = estimateChannelGrid(obj, packetOfInterest, ...
+                 interferingPackets, carrierConfigInfo)
++       
++            if isempty(packetOfInterest) || ~isstruct(packetOfInterest)
++                estChannelGrid = [];
++                estChannelGridIntf = [];
++                return;
++            end
++
++            % 确保 Metadata.Channel.PathGains 存在
++            if ~isfield(packetOfInterest, 'Metadata') || ...
++               ~isfield(packetOfInterest.Metadata, 'Channel') || ...
++               ~isfield(packetOfInterest.Metadata.Channel, 'PathGains')
++                error('Invalid packet: Missing Metadata.Channel.PathGains');
++            end
+             %estPerfectChannelGrid Returns estimated channel grid w.r.t transmitter of interest and interferers
+ 
+             % Estimate channel for transmitter of interest. Scale path gains to
+@@ -755,6 +784,16 @@
+ 
+             for idx=1:length(csirsInfo)
+                 csirsConfig = csirsInfo{idx};
++                % (Su) Check whether the sender of the CSI-RS packet is the currently connected gNB.
++                if csirsConfig.NID ~= obj.CarrierInformation.NCellID
++                    % If the CSI-RS packet is not from the currently connected gNB, skip processing.
++                    continue;
++                end
++        
++                if isempty(obj.CSIReportConfig)
++                    continue;
++                end
++
+                 % Set carrier information
+                 carrierConfigInfo = obj.CarrierConfig;
+                 slotsPerSubframe = obj.WaveformInfo.SlotsPerSubframe;
+
