@@ -1,86 +1,56 @@
 # 5G C-UAV MATLAB Simulator
 
-This repository contains a modular and extensible 5G network simulation framework for connected UAVs, implemented in MATLAB. The platform supports mobility management, scalable UE deployment, and integration with various transport-layer protocols including QUIC, MP-QUIC, TCP, and UDP. It also incorporates reinforcement learning (RL) for intelligent handover decision-making.
+This repository provides a **modular and extensible 5G network simulation framework** for connected UAVs, implemented in MATLAB.  
+It supports mobility management, scalable UE deployment, and integration with multiple transport-layer protocols (TCP, UDP, QUIC, MP-QUIC).  
+Reinforcement learning (RL) is incorporated for intelligent handover decision-making.
+
+---
+
+## Publication
+
+📄 *A Modular and Scalable Simulator for Connected UAVs Communication in 5G Networks*  
+Accepted by **MSWiM 2025**. Full paper available on [arXiv](https://arxiv.org/abs/2509.00868).
+
+---
 
 ## Project Structure
 
-### Toolbox Enhancements
+- **Mobility Management**: `HandoverManager.m`, `generate_fixed_path.m`, `base_network.m`  
+- **Scalability Testing**: `scalability_test.m`  
+- **Transport Protocols**: `tcp_matlab.m`, `scalability_test.m` , `quic_matlab.m`, `mpquic_matlab.m`  
+- **Handover Strategies**: `main_training.m`, `main_evaluate.m`  
 
-- **internal_changes.diff**
-
-- **wirelessnetwork_changes.diff**
-
-  `internal_changes.diff`: Added disconnect and reconnect functions required for handover in each layer of the 5G protocol stack.
-
-  `wirelessnetwork_changes.diff`: Major modifications focused on `nrUE` and `nrGNB`.
-
-------
-
-### Mobility Management
-
-- **`handoverManager.m`**
-   Mobility management module supporting multiple handover strategies (A3 event-based, DQN-based, etc.).
-- **`generateFixedPath.m`**
-   Script for generating fixed UAV trajectories to test handover performance under reproducible conditions.
-- **`baseNetwork.m`**
-   Defines the baseline 5G simulation environment, including gNBs and UEs.
-
-------
-
-### Scalability Testing
-
-- **`scalability_test.m`**
-   Supports multi-UE scenarios for testing the performance and scalability of the system.
-
-------
-
-### Transport Layer Protocol Integration
-
-- **`quic_matlab.m`**
-   Integrates the QUIC protocol using a MATLAB interface to an external Go-based QUIC implementation.
-- **`tcp_matlab.m`**
-   Implements traditional TCP communication.
-- **`mpquic_matlab.m`**
-   Integrates Multipath-QUIC (MP-QUIC) to simulate simultaneous multi-link data flows.
-- **`scalability_test.m`**
-   Also supports simple UDP-based transmission for lightweight testing.
-
-------
-
-### Handover Strategy Comparison
-
-- **`main_training_script.m`**
-   Trains an RL-based handover agent (e.g., DQN/DDQN) using environment feedback and SINR measurements.
-- **`main_evaluate_script.m`**
-   Evaluates the performance of different handover strategies under identical conditions.
-
-------
+---
 
 ## Key Features
 
-- Modular and scalable simulation design
-- Support for fixed-path and random UAV trajectories
-- Transport protocol flexibility: TCP, UDP, QUIC, MP-QUIC
-- RL-based intelligent handover with comparison against conventional rules
-- Multi-UE scalability testing
+- Modular and scalable MATLAB-based simulator  
+- UAV trajectory generation (fixed and random)  
+- Transport protocol flexibility: TCP, UDP, QUIC, MP-QUIC  
+- RL-based handover compared with rule-based strategies  
+- Multi-UE scalability experiments  
 
-------
+---
+
+## Contributors & Roles
+
+| Contributor                     | Role                                            |
+| ------------------------------- | ----------------------------------------------- |
+| **Yong Su**                     | Project lead; overall design                    |
+| **Yiyi Chen**, **Shenghong Yi** | Implementation of handover strategy comparisons |
+| **Hui Feng**                    | Guidance on experiment design and methodology   |
+
+---
 
 ## Requirements
 
-- MATLAB R2024b or newer 
+- MATLAB R2024b or newer  
+- Python (for external RL integration)  
+- [quic-go](https://github.com/lucas-clemente/quic-go) for QUIC/MP-QUIC  
 
-- Python (for external RL agent integration)
-
-- [quic-go](https://github.com/lucas-clemente/quic-go) for QUIC/MP-QUIC support
-
-  
-
-------
+---
 
 ## Contact
 
-For academic collaborations or questions, please contact:
-
-**[Yong Su]**
- [suy21@m.fudan.edu.cn]
+For academic collaborations or questions:  
+**Yong Su** – [suy21@m.fudan.edu.cn]  
