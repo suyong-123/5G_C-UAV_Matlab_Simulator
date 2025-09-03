@@ -1,4 +1,4 @@
-# C-UAV Systems Simulation Platform
+# 5G C-UAV MATLAB Simulator
 
 This repository contains a modular and extensible 5G network simulation framework for connected UAVs, implemented in MATLAB. The platform supports mobility management, scalable UE deployment, and integration with various transport-layer protocols including QUIC, MP-QUIC, TCP, and UDP. It also incorporates reinforcement learning (RL) for intelligent handover decision-making.
 
@@ -29,20 +29,20 @@ This repository contains a modular and extensible 5G network simulation framewor
 
 ### Scalability Testing
 
-- **`scalable.m`**
+- **`scalability_test.m`**
    Supports multi-UE scenarios for testing the performance and scalability of the system.
 
 ------
 
 ### Transport Layer Protocol Integration
 
-- **`multi-quic-client.m`**
+- **`quic_matlab.m`**
    Integrates the QUIC protocol using a MATLAB interface to an external Go-based QUIC implementation.
 - **`tcp_matlab.m`**
    Implements traditional TCP communication.
 - **`mpquic_matlab.m`**
    Integrates Multipath-QUIC (MP-QUIC) to simulate simultaneous multi-link data flows.
-- **`scalable.m`**
+- **`scalability_test.m`**
    Also supports simple UDP-based transmission for lightweight testing.
 
 ------
