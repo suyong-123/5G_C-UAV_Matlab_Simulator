@@ -9,7 +9,7 @@ Reinforcement learning (RL) is incorporated for intelligent handover decision-ma
 ## Publication
 
 📄 *A Modular and Scalable Simulator for Connected UAVs Communication in 5G Networks*  
-Accepted by **MSWiM 2025**. Full paper available on [arXiv](https://arxiv.org/abs/2509.00868).
+Accepted by **MSWiM 2025**. Full paper available on https://ieeexplore.ieee.org/abstract/document/11309167
 
 ---
 
